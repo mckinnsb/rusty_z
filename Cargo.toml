@@ -1,0 +1,11 @@
+[package]
+
+name = "rusty_z"
+version = "0.0.1"
+authors = [ "Stew <mckinnsb@gmail.com>" ]
+
+[dependencies.webplatform]
+git = "https://github.com/tcr/rust-webplatform"
+
+[target.asmjs-unknown-emscripten]
+ 
