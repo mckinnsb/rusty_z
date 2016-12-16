@@ -1,4 +1,4 @@
-* rusty_z
+#rusty_z
 
 A ZMachine interpreter written in Rust.
 
