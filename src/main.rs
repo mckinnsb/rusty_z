@@ -1,11 +1,12 @@
-#[cfg(feature="web")]
+#[cfg(target_os="emscripten")]
 extern crate webplatform;
 
 fn main() {
     display("What's up world!");
 }
 
-#[cfg(feature="web")]
+
+#[cfg(target_os="emscripten")]
 fn display(text: &str) {
     let document = webplatform::init();
     let content = document.element_query("section#content");
@@ -16,7 +17,7 @@ fn display(text: &str) {
     }
 }
 
-#[cfg(not(feature="web"))]
+#[cfg(not(target_os="emscripten"))]
 fn display(text: &str) {
     println!("{}", text);
 }

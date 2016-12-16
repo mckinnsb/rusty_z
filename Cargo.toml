@@ -6,6 +6,4 @@ authors = [ "Stew <mckinnsb@gmail.com>" ]
 
 [dependencies.webplatform]
 git = "https://github.com/tcr/rust-webplatform"
-
-[target.asmjs-unknown-emscripten]
  
