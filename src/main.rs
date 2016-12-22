@@ -32,8 +32,6 @@ fn main() {
     //
     //
 
-
-
     // this is a static reference, we need a vec
     // we use the include_bytes! macro because it is cross-compatible
     // with asm.js
@@ -46,7 +44,7 @@ fn main() {
     let data_ref: &[u8] = &data[..];
 
     // we then copy it as a vector using std::slice
-    let mut data_buffer = data_ref.to_vec();
+    let data_buffer = data_ref.to_vec();
 
 
     println!("file read was {} bytes long", file_size);
@@ -56,10 +54,21 @@ fn main() {
     }
 
     // machine now takes ownership of the data buffer
-    let machine = ZMachine::new(data_buffer);
+    // its mut, because next_instruction can change the
+    // state of the machine. which makes complete sense
+    //
+    // we could also maybe hide this my starting a coroutine or something,
+    // but we would just be wrapping a mutable reference somewhere
+
+    let mut machine = ZMachine::new(data_buffer);
     let status = machine.header.get_status();
 
     display(&status);
+
+    // this might really need to change
+    while machine.running {
+        machine.next_instruction();
+    }
 
 }
 
