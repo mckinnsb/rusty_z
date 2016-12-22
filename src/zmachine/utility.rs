@@ -1,5 +1,7 @@
 pub struct MemoryTools;
 
+// i might move this into memory view
+
 impl MemoryTools {
     // it takes up to a u32 because the largest story file allowed
     // is 512kbytes, and u32 is the lowest integer that can represent
