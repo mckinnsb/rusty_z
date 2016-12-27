@@ -1,47 +1,14 @@
 pub mod opcode;
+pub mod instruction_set;
 
 // represents the current zmachine
 use super::header::*;
 use self::opcode::*;
+use super::memory_view::*;
 
 use std::rc::*;
 use std::cell::RefCell;
 
-// a "view" into environment memory. mostly used to split off the memory
-// from zmachine so we can give the memory and stack in different states
-// immutable/mutable )
-
-pub struct MemoryView {
-    memory: Rc<RefCell<Vec<u8>>>,
-    // the ip at the time this view was created -
-    // note this is only valid
-    ip: u16,
-}
-
-impl MemoryView {
-    pub fn read_at_offset(&self, offset: u16) -> u8 {
-        let address = self.program_offset(offset);
-        self.memory.borrow()[address]
-    }
-
-    pub fn read_at_offset_from_head(&self, offset: u16) -> u8 {
-        self.read_at_offset(self.ip + offset)
-    }
-
-    pub fn read_u16_at_offset(&self, offset: u16) -> u16 {
-        let result = (self.read_at_offset(offset) as u16) << 8 |
-                     self.read_at_offset(offset + 1) as u16;
-        result
-    }
-
-    pub fn read_u16_at_offset_from_head(&self, offset: u16) -> u16 {
-        self.read_u16_at_offset(self.ip + offset)
-    }
-
-    fn program_offset(&self, offset: u16) -> usize {
-        (self.ip + (offset)) as usize
-    }
-}
 
 // wraps a Vec with some other information
 pub struct Stack {
@@ -51,22 +18,53 @@ pub struct Stack {
     // we don't have a "current pointer" because the stack
     // is going to grow until our system just can't take it anymore,
     // and current pointer will always be stack.len()-1
-    top_of_frame: u16,
+    top_of_frame: usize,
     pub stack: Vec<u16>,
 }
 
 impl Stack {
+
     // strictly speaking, can only be 0..15
     pub fn get_local_variable(&self, num: u8) -> u16 {
-
         // here we will cast because i do want some restrictions
         // around get local variable
-
-        let offset = num as u16;
+        let offset = num as usize;
         let index = self.top_of_frame + offset + 1;
         self.stack[index as usize]
+    }
+
+    pub fn store_local_variable(&mut self, num: u8, value: u16) {
+        let offset = num as usize;
+        let index = self.top_of_frame + offset + 1;
+        self.stack[index as usize] = value;
+    }
+
+    pub fn switch_to_new_frame(&mut self) {
+        //the stack will never exceed 64,000 entries - i believe
+        //the recommended # given by infocom is somewhere in the hundreds
+        //the total stack size wont exceed 1024 entries,
+        //or about ~16k
+        self.stack.push( self.top_of_frame as u16 );
+        self.top_of_frame = self.top_of_stack();
+    }
+
+    pub fn restore_last_frame(&mut self) {
+
+        //dump everything after the top of the frame
+        self.stack.truncate( self.top_of_frame );
+
+        //restore the top of the frame ( hidden )
+        self.top_of_frame = match self.stack.pop() {
+            Some(frame) => frame as usize,
+            _ => panic!( "restoring last frame resulted in stack underflow!" ),
+        };
 
     }
+
+    pub fn top_of_stack(&self) -> usize {
+        self.stack.len() - 1
+    }
+
 }
 
 pub struct ZMachine {
@@ -110,8 +108,10 @@ pub struct ZMachine {
     memory: Rc<RefCell<Vec<u8>>>,
 
     // the stack pointer/program counter, technically this can be 0-512k,
-    // closest representation is u16
-    ip: u16,
+    // closest representation is u32
+    //
+    // note that this is one of the very few 'u32' things here
+    ip: u32,
 
     // are we still running? keep processing.
     pub running: bool,
@@ -151,7 +151,9 @@ impl ZMachine {
         // but since it implements the Copy trait, we are actually just copying
         // the value
 
-        let pc_start = header.pc_start;
+        // note that pc_start is a u16, but our pointer is a u32. this is because
+
+        let pc_start = header.pc_start as u32;
 
         ZMachine {
             call_stack: Stack {
@@ -163,46 +165,126 @@ impl ZMachine {
             memory: memory,
             running: true,
         }
+
     }
+
 
     pub fn get_version(&self) -> u8 {
         self.header.version
     }
 
-    pub fn get_view(&self) -> MemoryView {
+    //gets a view into the current program
+    //stack
+    pub fn get_frame_view(&self) -> MemoryView {
         MemoryView {
             memory: self.memory.clone(),
 
             // note this will only be accurate per-instruction;
             // don't try to use the old instructions memory view
             // to pass to opcodes
-            ip: self.ip,
+            pointer: self.ip,
+        }
+    }
+
+    pub fn get_global_variables_view(&self) -> MemoryView {
+        MemoryView {
+            memory: self.memory.clone(),
+
+            //this will be accurate for the lifetime of the program
+            //we cast here; it wont be of any consequence because
+            //while the memory/pointer is represented by s u32,
+            //the global variables are in the lower half of memory
+            //represented by a u16
+            //
+            //( basically, the addresses are all two byte words but are multiplied
+            //by 2 to access "high memory", or non dynamic memory" )
+            pointer: self.header.global_vars_table_location as u32,
+        }
+    }
+
+    //the memory view for the whole env
+    pub fn get_memory_view(&self) -> MemoryView {
+        MemoryView {
+            memory: self.memory.clone(),
+            //the start of memory
+            pointer: 0,
         }
     }
 
     pub fn next_instruction(&mut self) {
 
-        let op_id = self.peek_at_instruction();
+        //a non-mutable memory view,
+        //reads from the same memory as zmachine
+        let view = self.get_frame_view();
+        let globals = self.get_global_variables_view();
 
-        let mut opCode = OpCode::form_opcode(op_id);
+        //the top two bytes of the instruction
+        //will give all of the information needed for the instruction;
+        //
+        //note that not all instructions use the top two bytes
 
-        let stack = &mut self.call_stack;
-        let view = self.get_view();
+        let word = view.peek_at_instruction();
+        let mut op_code = OpCode::form_opcode(word);
 
-        // have the view.
-        opCode.read_variables(view, stack);
+        //we get a mutable reference to the call stack
+        //because variables can augment them
+        //
+        //we do this in its own scope to drop the mutable
+        //reference after we are done
+        {
+            let stack = &mut self.call_stack;
+            // have the view.
+            op_code.read_variables(view, globals, stack);
+            println!("{}", op_code);
+        }
 
-        println!("{}", opCode);
+        op_code.execute(self);
 
-        self.running = false;
+        if op_code.store {
+
+            //we have to make a new view, here,
+            //because we could have changed the pointer
+            //after execute
+
+            let view = self.get_frame_view();
+            let destination = view.read_at_head(op_code.read_bytes);
+            self.store_variable(destination, op_code.result);
+            op_code.read_bytes += 1
+
+        }
+
+        //if the op code branched or branches,
+        //we rely on the op to set the ip,
+        //otherwise we just increment it
+
+        if !op_code.branch {
+            self.ip += op_code.read_bytes;
+        }
+
+        //self.running = false;
 
     }
 
-    // this peeks at the top of the stack and copies the first two bytes
-    // into an array, and returns
-    fn peek_at_instruction(&self) -> [u8; 2] {
-        // these are u8s, so they are copied
-        let x = [self.read_at_offset(0), self.read_at_offset(1)];
-        x
+    // the machine always stores variables at the end of instruction calls,
+    // and accesses variables while processing the call;
+    //
+    // this has the interesting side effect of having the get in
+    // the op code, and the store in the machine
+    //
+    // another reason for this is that most of the storage options
+    // belong to the machine anyway - you will be mutating one
+    // of them exactly for each type. operands of op-codes
+    // are basically read only, but CAN effect the stack
+
+    pub fn store_variable( &mut self, address: u8, value: u16 ) {
+        match address {
+            0 => self.call_stack.stack.push( value ),
+            index @ 0x01...0x0f => self.call_stack.store_local_variable( index - 1 , value ),
+            index @ 0x10...0xff => self.
+                get_global_variables_view().
+                write_u16_at_head( (index as u32 -1)*2, value ),
+            _ => unreachable!(),
+        }
     }
+
 }

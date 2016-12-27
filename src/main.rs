@@ -35,6 +35,9 @@ fn main() {
     // this is a static reference, we need a vec
     // we use the include_bytes! macro because it is cross-compatible
     // with asm.js
+    //
+    // we could probably split this out later using CFG to
+    // lower the size of the desktop binary
     let data = include_bytes!("../data.z3");
 
     // this gets the file size from the static string
