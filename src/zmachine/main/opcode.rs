@@ -43,8 +43,8 @@ impl fmt::Display for OpForm {
 
 pub enum Operand {
     LargeConstant { value: u16 },
-    //the address itself is a byte, but the value is a u16,
-    //we evaluate it before we store it here
+    // the address itself is a byte, but the value is a u16,
+    // we evaluate it before we store it here
     Variable { value: u16 },
     SmallConstant { value: u8 },
     Omitted,
@@ -54,39 +54,37 @@ impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
         let formatted = match self {
-            &Operand::LargeConstant { value } => format!("Large Constant: {:x}", value ),
-            &Operand::SmallConstant { value } => format!("Small Constant: {:x}", value ),
-            &Operand::Variable { value } => format!( "Variable : {:x}", value ),
-            &Operand::Omitted => format!( "Omitted" ),
+            &Operand::LargeConstant { value } => format!("Large Constant: {:x}", value),
+            &Operand::SmallConstant { value } => format!("Small Constant: {:x}", value),
+            &Operand::Variable { value } => format!("Variable : {:x}", value),
+            &Operand::Omitted => format!("Omitted"),
         };
 
-        write!(f, "{}", formatted )
+        write!(f, "{}", formatted)
 
     }
 }
 
 impl Operand {
-
-    //it should be noted that some operands can be encoded as 8 bytes by the compiler,
-    //but for the most part, they will be stored as u16s either a) in the stack or b)
-    //as a global variable. im not sure if all interpreters or any interpreter
-    //actually bothers to write small constants to the local call frame (instead of on the stack),
-    //or bothers implementing a stack in bytes just to accomodate one data type
+    // it should be noted that some operands can be encoded as 8 bytes by the compiler,
+    // but for the most part, they will be stored as u16s either a) in the stack or b)
+    // as a global variable. im not sure if all interpreters or any interpreter
+    // actually bothers to write small constants to the local call frame (instead of on the stack),
+    // or bothers implementing a stack in bytes just to accomodate one data type
 
     pub fn get_value(&self) -> u16 {
         match self {
-            //not 100% if this is a good idea at this point
-            &Operand::Omitted => panic!( "tried to get the value of an omitted operand!" ),
+            // not 100% if this is a good idea at this point
+            &Operand::Omitted => panic!("tried to get the value of an omitted operand!"),
             &Operand::SmallConstant { value } => value as u16,
             &Operand::LargeConstant { value } |
             &Operand::Variable { value } => value,
         }
     }
-
-
 }
+
 pub struct OpCode {
-    //the actual opcode, this is determined
+    // the actual opcode, this is determined
     pub code: u8,
 
     // the "form" of this opcode, or how it encodes the first byte(s)
@@ -122,8 +120,8 @@ pub struct OpCode {
     // does this code pause for input?
     pub input: bool,
 
-    //this is the actual opcode instruction, its hidden behind "execute"
-    instruction: fn( &mut OpCode, &mut ZMachine ),
+    // this is the actual opcode instruction, its hidden behind "execute"
+    instruction: fn(&mut OpCode, &mut ZMachine),
 
     // how many bytes have we read until the instruction is executed
     // ( and the stack pointer potentially changes )?
@@ -146,33 +144,60 @@ pub struct OpCode {
     // 1) it is to avoid unnecessary casts
     // and 2) technically speaking it could be legal, you could have an inform
     // script that is just one MASSIVE print command
-
     pub read_bytes: u32,
 
-    //the result of the operation - if this was
-    //a branch operation, 0 is false, 1 is true
-    pub result: u16
+    // the result of the operation - if this was
+    // a branch operation, 0 is false, 1 is true
+    pub result: u16,
 }
 
 impl OpCode {
+    fn assign_instruction(code: &mut OpCode) {
 
-    fn assign_instruction( code: &mut OpCode ) {
-
-        //the form is an object that does not copy, so we need a reference
-        //to it
-
+        // the form is an object that does not copy, so we need a reference
+        // to it
+        // behold, the match to rule them all
+        //
+        // not sure if this is better nested, or split apart
+        // at all
         let instruction = match (&code.form, code.operand_count, code.code) {
-            ( &OpForm::Variable, _, 0x0 ) => instruction_set::call,
-            ( &OpForm::Short, 1, 0xB ) => instruction_set::ret,
-            _ => panic!( "Instruction not found!" )
+            (&OpForm::Long, _, 0x1) => instruction_set::je,
+            (&OpForm::Long, _, 0x2) => instruction_set::jl,
+            (&OpForm::Long, _, 0x3) => instruction_set::jg,
+            (&OpForm::Long, _, 0x4) => instruction_set::dec_chk,
+            (&OpForm::Long, _, 0x5) => instruction_set::inc_chk,
+            (&OpForm::Long, _, 0x6) => instruction_set::jin,
+            (&OpForm::Long, _, 0x7) => instruction_set::test,
+            (&OpForm::Long, _, 0x8) => instruction_set::or,
+            (&OpForm::Long, _, 0x9) => instruction_set::and,
+            (&OpForm::Long, _, 0xA) => instruction_set::test_attr,
+            (&OpForm::Long, _, 0xB) => instruction_set::set_attr,
+            (&OpForm::Long, _, 0xC) => instruction_set::clear_attr,
+            (&OpForm::Long, _, 0xD) => instruction_set::store,
+            (&OpForm::Long, _, 0xE) => instruction_set::insert_obj,
+            (&OpForm::Long, _, 0xF) => instruction_set::loadw,
+            (&OpForm::Long, _, 0x10) => instruction_set::loadb,
+            (&OpForm::Long, _, 0x11) => instruction_set::get_prop,
+            (&OpForm::Long, _, 0x12) => instruction_set::get_prop_addr,
+            (&OpForm::Long, _, 0x13) => instruction_set::get_next_prop,
+            (&OpForm::Long, _, 0x14) => instruction_set::add,
+            (&OpForm::Long, _, 0x15) => instruction_set::sub,
+            (&OpForm::Long, _, 0x16) => instruction_set::mul,
+            (&OpForm::Long, _, 0x17) => instruction_set::div,
+            (&OpForm::Long, _, 0x18) => instruction_set::mod_fn,
+            (&OpForm::Short, 1, 0xB) => instruction_set::ret,
+            (&OpForm::Variable, _, 0x0) => instruction_set::call,
+            (&OpForm::Variable, _, 0x1) => instruction_set::storew,
+            (&OpForm::Variable, _, 0x3) => instruction_set::put_prop,
+            _ => panic!("Instruction not found!"),
         };
 
         code.instruction = instruction;
 
     }
 
-    pub fn execute( &mut self, env: &mut ZMachine ) {
-        (self.instruction)( self, env );
+    pub fn execute(&mut self, env: &mut ZMachine) {
+        (self.instruction)(self, env);
     }
 
     // opcode can be several bytes long, but in the
@@ -183,7 +208,7 @@ impl OpCode {
     // and we trust the opcode itself, since the length is variable,
     // to move the pc
 
-    pub fn form_opcode( word: [u8;2] ) -> OpCode {
+    pub fn form_opcode(word: [u8; 2]) -> OpCode {
 
         // set some defaults and do stuff we will have to do anyway,
         // like filling out the operands table
@@ -213,14 +238,14 @@ impl OpCode {
 
             let code_ref = &mut op_code;
 
-            //the top byte of the instruction
-            //while not giving the exact opcode
-            //were designed to 'mark' aspects of the
-            //opcode, such as what form it is and
-            //how many variables it takes
+            // the top byte of the instruction
+            // while not giving the exact opcode
+            // were designed to 'mark' aspects of the
+            // opcode, such as what form it is and
+            // how many variables it takes
 
             match word[0] {
-                //here, id is matched as the first byte, so we can access the opcode
+                // here, id is matched as the first byte, so we can access the opcode
                 0x00...0x7f => OpCode::form_long_opcode(code_ref, word[0]),
                 // the fallthrough for be , the code for extended opcodes,
                 // falls through in form_short_opcode
@@ -233,7 +258,7 @@ impl OpCode {
 
         {
             let code_ref = &mut op_code;
-            OpCode::assign_instruction( code_ref );
+            OpCode::assign_instruction(code_ref);
         }
         // since we dropped the mutable reference, you can have it now,
         // caller
@@ -391,8 +416,8 @@ impl OpCode {
 
     }
 
-    fn null_instruction( code: &mut OpCode, env: &mut ZMachine ) {
-        //doooo nothin
+    fn null_instruction(code: &mut OpCode, env: &mut ZMachine) {
+        // doooo nothin
     }
 
     pub fn read_variables(&mut self,
@@ -444,7 +469,6 @@ impl OpCode {
         }
 
     }
-
 }
 
 impl fmt::Display for OpCode {

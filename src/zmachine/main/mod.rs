@@ -23,7 +23,6 @@ pub struct Stack {
 }
 
 impl Stack {
-
     // strictly speaking, can only be 0..15
     pub fn get_local_variable(&self, num: u8) -> u16 {
         // here we will cast because i do want some restrictions
@@ -40,23 +39,23 @@ impl Stack {
     }
 
     pub fn switch_to_new_frame(&mut self) {
-        //the stack will never exceed 64,000 entries - i believe
-        //the recommended # given by infocom is somewhere in the hundreds
-        //the total stack size wont exceed 1024 entries,
-        //or about ~16k
-        self.stack.push( self.top_of_frame as u16 );
+        // the stack will never exceed 64,000 entries - i believe
+        // the recommended # given by infocom is somewhere in the hundreds
+        // the total stack size wont exceed 1024 entries,
+        // or about ~16k
+        self.stack.push(self.top_of_frame as u16);
         self.top_of_frame = self.top_of_stack();
     }
 
     pub fn restore_last_frame(&mut self) {
 
-        //dump everything after the top of the frame
-        self.stack.truncate( self.top_of_frame );
+        // dump everything after the top of the frame
+        self.stack.truncate(self.top_of_frame);
 
-        //restore the top of the frame ( hidden )
+        // restore the top of the frame ( hidden )
         self.top_of_frame = match self.stack.pop() {
             Some(frame) => frame as usize,
-            _ => panic!( "restoring last frame resulted in stack underflow!" ),
+            _ => panic!("restoring last frame resulted in stack underflow!"),
         };
 
     }
@@ -64,7 +63,6 @@ impl Stack {
     pub fn top_of_stack(&self) -> usize {
         self.stack.len() - 1
     }
-
 }
 
 pub struct ZMachine {
@@ -173,8 +171,8 @@ impl ZMachine {
         self.header.version
     }
 
-    //gets a view into the current program
-    //stack
+    // gets a view into the current program
+    // stack
     pub fn get_frame_view(&self) -> MemoryView {
         MemoryView {
             memory: self.memory.clone(),
@@ -202,35 +200,47 @@ impl ZMachine {
         }
     }
 
-    //the memory view for the whole env
+    pub fn get_object_view(&self) -> MemoryView {
+        MemoryView {
+            memory: self.memory.clone(),
+
+            // this should be accurate for the lifetime of the
+            // program - i believe the tables interiors may be
+            // changed but the boundries cannot be overridden, these
+            // are set by the compiler
+            pointer: self.header.object_table_location as u32,
+        }
+    }
+
+    // the memory view for the whole env
     pub fn get_memory_view(&self) -> MemoryView {
         MemoryView {
             memory: self.memory.clone(),
-            //the start of memory
+            // the start of memory
             pointer: 0,
         }
     }
 
     pub fn next_instruction(&mut self) {
 
-        //a non-mutable memory view,
-        //reads from the same memory as zmachine
+        // a non-mutable memory view,
+        // reads from the same memory as zmachine
         let view = self.get_frame_view();
         let globals = self.get_global_variables_view();
 
-        //the top two bytes of the instruction
-        //will give all of the information needed for the instruction;
+        // the top two bytes of the instruction
+        // will give all of the information needed for the instruction;
         //
-        //note that not all instructions use the top two bytes
+        // note that not all instructions use the top two bytes
 
         let word = view.peek_at_instruction();
         let mut op_code = OpCode::form_opcode(word);
 
-        //we get a mutable reference to the call stack
-        //because variables can augment them
+        // we get a mutable reference to the call stack
+        // because variables can augment them
         //
-        //we do this in its own scope to drop the mutable
-        //reference after we are done
+        // we do this in its own scope to drop the mutable
+        // reference after we are done
         {
             let stack = &mut self.call_stack;
             // have the view.
@@ -242,9 +252,9 @@ impl ZMachine {
 
         if op_code.store {
 
-            //we have to make a new view, here,
-            //because we could have changed the pointer
-            //after execute
+            // we have to make a new view, here,
+            // because we could have changed the pointer
+            // after execute
 
             let view = self.get_frame_view();
             let destination = view.read_at_head(op_code.read_bytes);
@@ -253,15 +263,15 @@ impl ZMachine {
 
         }
 
-        //if the op code branched or branches,
-        //we rely on the op to set the ip,
-        //otherwise we just increment it
+        // if the op code branched or branches,
+        // we rely on the op to set the ip,
+        // otherwise we just increment it
 
         if !op_code.branch {
             self.ip += op_code.read_bytes;
         }
 
-        //self.running = false;
+        // self.running = false;
 
     }
 
@@ -276,15 +286,15 @@ impl ZMachine {
     // of them exactly for each type. operands of op-codes
     // are basically read only, but CAN effect the stack
 
-    pub fn store_variable( &mut self, address: u8, value: u16 ) {
+    pub fn store_variable(&mut self, address: u8, value: u16) {
         match address {
-            0 => self.call_stack.stack.push( value ),
-            index @ 0x01...0x0f => self.call_stack.store_local_variable( index - 1 , value ),
-            index @ 0x10...0xff => self.
-                get_global_variables_view().
-                write_u16_at_head( (index as u32 -1)*2, value ),
+            0 => self.call_stack.stack.push(value),
+            index @ 0x01...0x0f => self.call_stack.store_local_variable(index - 1, value),
+            index @ 0x10...0xff => {
+                self.get_global_variables_view()
+                    .write_u16_at_head((index as u32 - 1) * 2, value)
+            }
             _ => unreachable!(),
         }
     }
-
 }
