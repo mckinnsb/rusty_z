@@ -1,7 +1,8 @@
 // opcode struct
 
 use std::fmt;
-use super::MemoryView;
+use super::instruction_set;
+use super::super::memory_view::*;
 use super::ZMachine;
 use super::Stack;
 
@@ -42,33 +43,50 @@ impl fmt::Display for OpForm {
 
 pub enum Operand {
     LargeConstant { value: u16 },
-    SmallConstant { value: u8 },
+    //the address itself is a byte, but the value is a u16,
+    //we evaluate it before we store it here
     Variable { value: u16 },
+    SmallConstant { value: u8 },
     Omitted,
 }
 
 impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "{}",
-               match self {
-                   &Operand::LargeConstant { .. } => "Large Constant",
-                   &Operand::SmallConstant { .. } => "Small Constant",
-                   &Operand::Variable { .. } => "Variable",
-                   &Operand::Omitted => "Omitted",
-               })
+
+        let formatted = match self {
+            &Operand::LargeConstant { value } => format!("Large Constant: {:x}", value ),
+            &Operand::SmallConstant { value } => format!("Small Constant: {:x}", value ),
+            &Operand::Variable { value } => format!( "Variable : {:x}", value ),
+            &Operand::Omitted => format!( "Omitted" ),
+        };
+
+        write!(f, "{}", formatted )
+
     }
 }
 
-// enum OpType {
-//
-// }
-//
+impl Operand {
 
+    //it should be noted that some operands can be encoded as 8 bytes by the compiler,
+    //but for the most part, they will be stored as u16s either a) in the stack or b)
+    //as a global variable. im not sure if all interpreters or any interpreter
+    //actually bothers to write small constants to the local call frame (instead of on the stack),
+    //or bothers implementing a stack in bytes just to accomodate one data type
+
+    pub fn get_value(&self) -> u16 {
+        match self {
+            //not 100% if this is a good idea at this point
+            &Operand::Omitted => panic!( "tried to get the value of an omitted operand!" ),
+            &Operand::SmallConstant { value } => value as u16,
+            &Operand::LargeConstant { value } |
+            &Operand::Variable { value } => value,
+        }
+    }
+
+
+}
 pub struct OpCode {
-    // unsigned code, 0-255, the "index op code"
-    // note this is not really used at all, its just for reference
-    // on the table
+    //the actual opcode, this is determined
     pub code: u8,
 
     // the "form" of this opcode, or how it encodes the first byte(s)
@@ -88,7 +106,7 @@ pub struct OpCode {
     pub operand_count: u8, /* the instruction itself
                             * pub instruction: OpType, */
 
-    // does this code jump?
+    // does this code jump
     //
     // note that jumping does nothing to the stack, so its possible previous
     // state will get wiped out of it jumps to another routine (this is sometimes
@@ -104,7 +122,10 @@ pub struct OpCode {
     // does this code pause for input?
     pub input: bool,
 
-    // internally used, how many bytes have we read until the instruction is executed
+    //this is the actual opcode instruction, its hidden behind "execute"
+    instruction: fn( &mut OpCode, &mut ZMachine ),
+
+    // how many bytes have we read until the instruction is executed
     // ( and the stack pointer potentially changes )?
     //
     // we return this back to the zmachine so it can increment its PC after
@@ -125,11 +146,35 @@ pub struct OpCode {
     // 1) it is to avoid unnecessary casts
     // and 2) technically speaking it could be legal, you could have an inform
     // script that is just one MASSIVE print command
-    //
-    read_bytes: u16,
+
+    pub read_bytes: u32,
+
+    //the result of the operation - if this was
+    //a branch operation, 0 is false, 1 is true
+    pub result: u16
 }
 
 impl OpCode {
+
+    fn assign_instruction( code: &mut OpCode ) {
+
+        //the form is an object that does not copy, so we need a reference
+        //to it
+
+        let instruction = match (&code.form, code.operand_count, code.code) {
+            ( &OpForm::Variable, _, 0x0 ) => instruction_set::call,
+            ( &OpForm::Short, 1, 0xB ) => instruction_set::ret,
+            _ => panic!( "Instruction not found!" )
+        };
+
+        code.instruction = instruction;
+
+    }
+
+    pub fn execute( &mut self, env: &mut ZMachine ) {
+        (self.instruction)( self, env );
+    }
+
     // opcode can be several bytes long, but in the
     // form section we always allow the function to peek
     // at the top two bytes of the program stack
@@ -138,17 +183,18 @@ impl OpCode {
     // and we trust the opcode itself, since the length is variable,
     // to move the pc
 
-    pub fn form_opcode(code: [u8; 2]) -> OpCode {
+    pub fn form_opcode( word: [u8;2] ) -> OpCode {
 
         // set some defaults and do stuff we will have to do anyway,
         // like filling out the operands table
 
-        let mut opCode: OpCode = OpCode {
+        let mut op_code: OpCode = OpCode {
             code: 0,
             branch: false,
             store: false,
             print: false,
             input: false,
+            instruction: OpCode::null_instruction,
             form: OpForm::Short,
             operands: [Operand::Omitted {},
                        Operand::Omitted {},
@@ -156,6 +202,7 @@ impl OpCode {
                        Operand::Omitted {}],
             operand_count: 0,
             read_bytes: 0,
+            result: 0,
         };
 
 
@@ -164,22 +211,33 @@ impl OpCode {
         {
             // borrow a mutable reference to form the rest of the code
 
-            let codeRef = &mut opCode;
+            let code_ref = &mut op_code;
 
-            match code[0] {
-                id @ 0x00...0x7f => OpCode::form_long_opcode(codeRef, id),
+            //the top byte of the instruction
+            //while not giving the exact opcode
+            //were designed to 'mark' aspects of the
+            //opcode, such as what form it is and
+            //how many variables it takes
+
+            match word[0] {
+                //here, id is matched as the first byte, so we can access the opcode
+                0x00...0x7f => OpCode::form_long_opcode(code_ref, word[0]),
                 // the fallthrough for be , the code for extended opcodes,
                 // falls through in form_short_opcode
-                id @ 0x80...0xbf => OpCode::form_short_opcode(codeRef, id),
-                id @ 0xc0...0xff => OpCode::form_variable_opcode(codeRef, id, code[1]),
+                0x80...0xbf => OpCode::form_short_opcode(code_ref, word[0]),
+                0xc0...0xff => OpCode::form_variable_opcode(code_ref, word[0], word[1]),
                 // this should not be reachable
                 _ => unreachable!(),
             }
         }
 
+        {
+            let code_ref = &mut op_code;
+            OpCode::assign_instruction( code_ref );
+        }
         // since we dropped the mutable reference, you can have it now,
         // caller
-        opCode
+        op_code
 
     }
 
@@ -200,6 +258,9 @@ impl OpCode {
 
         // all long opcodes have two operands. lucky us
         code.operand_count = 2;
+        // mask out the top three bits, and we have our opcode
+        // (bottom five bits)
+        code.code = id & 0b00011111;
 
         match id {
             0x00...0x1f => {
@@ -232,6 +293,10 @@ impl OpCode {
         code.read_bytes = 1;
         code.form = OpForm::Short;
 
+        // mask out the top four bits, and we have our opcode
+        // (bottom four bits)
+        code.code = id & 0b00001111;
+
         match id {
             0x80...0x8f => {
                 code.operand_count = 1;
@@ -257,9 +322,13 @@ impl OpCode {
 
     fn form_variable_opcode(code: &mut OpCode, id: u8, second_byte: u8) {
 
-        code.form = OpForm::Variable;
         // we read the first 2 here, as indicated by second byte above
         code.read_bytes = 2;
+        code.form = OpForm::Variable;
+
+        // mask out the top three bits, and we have our opcode
+        // (bottom five bits)
+        code.code = id & 0b00011111;
 
         match id {
             0xc0...0xdf => {
@@ -284,8 +353,6 @@ impl OpCode {
                 // how many there are
                 //
                 // the first "omitted" result means we are done
-
-                println!("operand flag: {:#b}", second_byte);
 
                 for i in 0..code.operands.len() {
 
@@ -324,59 +391,69 @@ impl OpCode {
 
     }
 
-    pub fn read_variables(&mut self, memory: MemoryView, call_stack: &mut Stack) {
+    fn null_instruction( code: &mut OpCode, env: &mut ZMachine ) {
+        //doooo nothin
+    }
 
-        if (self.operand_count == 0) {
+    pub fn read_variables(&mut self,
+                          frame_view: MemoryView,
+                          globals: MemoryView,
+                          call_stack: &mut Stack) {
+
+        if self.operand_count == 0 {
             return;
         }
 
         for i in 0..self.operand_count {
-            let op = &mut self.operands[0];
+            let op = &mut self.operands[i as usize];
             match op {
-                &mut Operand::LargeConstant { mut value } => {
-                    value = memory.read_u16_at_offset_from_head(self.read_bytes);
+                &mut Operand::LargeConstant { ref mut value } => {
+                    *value = frame_view.read_u16_at_head(self.read_bytes);
                     self.read_bytes += 2;
                 }
-                &mut Operand::SmallConstant { mut value } => {
-                    value = memory.read_at_offset_from_head(self.read_bytes);
+                &mut Operand::SmallConstant { ref mut value } => {
+                    *value = frame_view.read_at_head(self.read_bytes);
                     self.read_bytes += 1;
                 }
-                &mut Operand::Variable { mut value } => {
-                    let addr = memory.read_at_offset_from_head(self.read_bytes);
+                &mut Operand::Variable { ref mut value } => {
+
+                    let addr = frame_view.read_at_head(self.read_bytes);
 
                     match addr {
                         // 0, its the stack, pop it and return
                         0 => {
-                            value = match call_stack.stack.pop() {
-                                Option::Some(x) => x,
-                                Option::None => panic!("stack underflow!"),
+                            *value = match call_stack.stack.pop() {
+                                Some(x) => x,
+                                None => panic!("stack underflow!"),
                             }
                         }
 
                         // 1 to 15, its a local
-                        i @ 0x01...0x0f => value = call_stack.get_local_variable(i),
+                        i @ 0x01...0x0f => *value = call_stack.get_local_variable(i),
                         // 16 to 255, it's a global variable.
-                        0x10...0xff => panic!("not implemented!"),
+                        global @ 0x10...0xff => *value = globals.read_u16_at_head(global as u32),
                         _ => unreachable!(),
                     }
 
-
                     self.read_bytes += 1;
+
+
                 }
                 &mut Operand::Omitted => break,
             };
         }
 
     }
+
 }
 
 impl fmt::Display for OpCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f,
-               "form: {}\n code: {}\n operands: {}\n operand_count: {}\n",
+               "form: {}\n opcode: {}\n operands:\n{}\n operand_count: {}\n",
                self.form,
                self.code,
-               format!("0: {}, 1: {}, 2: {}, 3: {}\n",
+               format!("0: {},\n1: {},\n2: {},\n3: {}\n",
                        self.operands[0],
                        self.operands[1],
                        self.operands[2],

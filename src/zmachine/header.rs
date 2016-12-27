@@ -1,4 +1,4 @@
-use super::utility::MemoryTools;
+use super::memory_view::*;
 
 use std::rc::*;
 use std::cell::RefCell;
@@ -57,23 +57,32 @@ impl Header {
 
     pub fn create(memory: Rc<RefCell<Vec<u8>>>) -> Header {
 
+        //make two clones - one will be dropped by the end of the scope
         let memory_for_struct = memory.clone();
-        let header_reference: &RefCell<Vec<u8>> = memory.borrow();
-        let header_ref: Ref<Vec<u8>> = header_reference.borrow();
-        let header_memory: &[u8] = &header_ref.as_slice();
+        let memory_for_header = memory.clone();
 
-        let version = header_memory[0x0];
+        let view = MemoryView {
+            memory: memory_for_struct,
+            //the header pointer is the top of the memory
+            pointer: 0,
+        };
+
+        let version = view.read_at(0x0);
 
         let obj = Header {
-            memory: memory_for_struct,
+            //header needs its own reference to build views, and also mutate values
+            //
+            //the header can only be modified by the interpreter - not the zmachine
+            //itself
+            memory: memory_for_header,
             version: version,
-            flags: HeaderFlags::process_header(header_memory, version),
-            hi_memory_start: MemoryTools::get_u16_at_position(header_memory, 0x4),
-            pc_start: MemoryTools::get_u16_at_position(header_memory, 0x6),
-            dictionary_location: MemoryTools::get_u16_at_position(header_memory, 0x8),
-            object_table_location: MemoryTools::get_u16_at_position(header_memory, 0xA),
-            global_vars_table_location: MemoryTools::get_u16_at_position(header_memory, 0xC),
-            static_memory_start_location: MemoryTools::get_u16_at_position(header_memory, 0xE),
+            flags: HeaderFlags::process_header(&view, version),
+            hi_memory_start: view.read_u16_at(0x4),
+            pc_start: view.read_u16_at(0x6),
+            dictionary_location: view.read_u16_at(0x8),
+            object_table_location: view.read_u16_at(0xA),
+            global_vars_table_location: view.read_u16_at(0xC),
+            static_memory_start_location: view.read_u16_at(0xE),
         };
 
         obj
@@ -123,40 +132,38 @@ pub enum HeaderFlags {
 }
 
 impl HeaderFlags {
-    fn process_header(header: &[u8], version: u8) -> HeaderFlags {
+    fn process_header(view: &MemoryView, version: u8) -> HeaderFlags {
 
         match version {
-            1...3 => HeaderFlags::process_v1_header(header),
+            1...3 => HeaderFlags::process_v1_header(view),
             _ => panic!("This interpreter only supports up to ZMachine version 3 at this time."),
         }
 
     }
 
-    fn process_v1_header(header: &[u8]) -> HeaderFlags {
+    fn process_v1_header(view: &MemoryView) -> HeaderFlags {
 
-        // bit 1 of byte 1
-
-        println!("header is:{}", header[0x1]);
+        let flag_byte = view.read_at(0x1);
 
         HeaderFlags::V1 {
             flags: HeaderFlagsV1 {
                 // first bit, if set, means we use the
                 // hours status line instead of score
-                status_line: match header[0x1] & 0x1 {
+                status_line: match flag_byte & 0x1 {
                     0x1 => StatusLineType::Hours,
                     // this is 0 and the default
                     _ => StatusLineType::Score,
                 },
 
                 // bit 2 of byte 1
-                split_story: header[0x1] & 0x2 > 0,
+                split_story: flag_byte & 0x2 > 0,
                 // go ahead, skip a bit and fuck with everyones head
                 // bit 4 of byte 1
-                show_status_line: header[0x1] & 0x4 > 0,
+                show_status_line: flag_byte & 0x4 > 0,
                 // bit 5 of byte 1
-                split_screen: header[0x1] & 0x5 > 0,
+                split_screen: flag_byte & 0x5 > 0,
                 // bit 6 of byte 1
-                variable_pitch_font: header[0x1] & 0x6 > 0,
+                variable_pitch_font: flag_byte & 0x6 > 0,
             },
         }
 
