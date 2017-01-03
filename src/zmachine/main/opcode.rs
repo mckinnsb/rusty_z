@@ -3,6 +3,7 @@
 use std::fmt;
 use super::instruction_set;
 use super::super::memory_view::*;
+use super::super::object_view::*;
 use super::ZMachine;
 use super::Stack;
 
@@ -161,6 +162,7 @@ impl OpCode {
         // not sure if this is better nested, or split apart
         // at all
         let instruction = match (&code.form, code.operand_count, code.code) {
+            //2 op - long
             (&OpForm::Long, _, 0x1) => instruction_set::je,
             (&OpForm::Long, _, 0x2) => instruction_set::jl,
             (&OpForm::Long, _, 0x3) => instruction_set::jg,
@@ -185,10 +187,55 @@ impl OpCode {
             (&OpForm::Long, _, 0x16) => instruction_set::mul,
             (&OpForm::Long, _, 0x17) => instruction_set::div,
             (&OpForm::Long, _, 0x18) => instruction_set::mod_fn,
+            //1 op
+            (&OpForm::Short, 1, 0x0) => instruction_set::jz,
+            (&OpForm::Short, 1, 0x1) => instruction_set::get_sibling,
+            (&OpForm::Short, 1, 0x2) => instruction_set::get_child,
+            (&OpForm::Short, 1, 0x3) => instruction_set::get_parent,
+            (&OpForm::Short, 1, 0x4) => instruction_set::get_prop_len,
+            (&OpForm::Short, 1, 0x5) => instruction_set::inc,
+            (&OpForm::Short, 1, 0x6) => instruction_set::dec,
+            (&OpForm::Short, 1, 0x7) => instruction_set::print_addr,
+            (&OpForm::Short, 1, 0x8) => instruction_set::call_1s,
+            (&OpForm::Short, 1, 0x9) => instruction_set::remove_obj,
+            (&OpForm::Short, 1, 0xA) => instruction_set::print_obj,
             (&OpForm::Short, 1, 0xB) => instruction_set::ret,
+            (&OpForm::Short, 1, 0xC) => instruction_set::jump,
+            (&OpForm::Short, 1, 0xD) => instruction_set::print_paddr,
+            //0 op
+            (&OpForm::Short, 0, 0x0) => instruction_set::rtrue,
+            (&OpForm::Short, 0, 0x1) => instruction_set::rfalse,
+            (&OpForm::Short, 0, 0x2) => instruction_set::print,
+            (&OpForm::Short, 0, 0x3) => instruction_set::print_ret,
+            (&OpForm::Short, 0, 0x4) => instruction_set::nop,
+            //these next two calls are illegal after version 5
+            (&OpForm::Short, 0, 0x5) => instruction_set::save,
+            (&OpForm::Short, 0, 0x6) => instruction_set::restore,
+            //still legal
+            (&OpForm::Short, 0, 0x7) => instruction_set::restart,
+            (&OpForm::Short, 0, 0x8) => instruction_set::ret_popped,
+            (&OpForm::Short, 0, 0x9) => instruction_set::pop,
+            (&OpForm::Short, 0, 0xA) => instruction_set::quit,
+            (&OpForm::Short, 0, 0xB) => instruction_set::new_line,
+            (&OpForm::Short, 0, 0xC) => instruction_set::show_status,
+            (&OpForm::Short, 0, 0xD) => instruction_set::verify,
+            //variable op codes
             (&OpForm::Variable, _, 0x0) => instruction_set::call,
             (&OpForm::Variable, _, 0x1) => instruction_set::storew,
+            (&OpForm::Variable, _, 0x2) => instruction_set::storeb,
             (&OpForm::Variable, _, 0x3) => instruction_set::put_prop,
+            (&OpForm::Variable, _, 0x4) => instruction_set::sread,
+            (&OpForm::Variable, _, 0x5) => instruction_set::print_char,
+            (&OpForm::Variable, _, 0x6) => instruction_set::print_num,
+            (&OpForm::Variable, _, 0x7) => instruction_set::random,
+            (&OpForm::Variable, _, 0x8) => instruction_set::push,
+            (&OpForm::Variable, _, 0x9) => instruction_set::pull,
+            (&OpForm::Variable, _, 0xA) => instruction_set::split_window,
+            (&OpForm::Variable, _, 0xB) => instruction_set::set_window,
+            (&OpForm::Variable, _, 0x13) => instruction_set::output_stream,
+            (&OpForm::Variable, _, 0x14) => instruction_set::input_stream,
+            (&OpForm::Variable, _, 0x15) => instruction_set::sound_effect,
+            //end
             _ => panic!("Instruction not found!"),
         };
 

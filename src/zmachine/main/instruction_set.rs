@@ -117,31 +117,62 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // done!
 
 }
+pub fn call_1s(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn clear_attr(code: &mut OpCode, machine: &mut ZMachine) {}
 
+pub fn dec(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn div(code: &mut OpCode, machine: &mut ZMachine) {}
 
+pub fn get_child(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn get_parent(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn get_sibling(code: &mut OpCode, machine: &mut ZMachine) {}
 
+pub fn inc(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {}
 
+
+pub fn je(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn jl(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {}
+
+pub fn load(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn loadb(code: &mut OpCode, machine: &mut ZMachine) {}
 
 pub fn mul(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn mod_fn(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn new_line(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn nop(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn or(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn print(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn print_ret(code: &mut OpCode, machine: &mut ZMachine) {}
 
-pub fn je(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn jl(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
+
+}
+
+pub fn pull(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn push(code: &mut OpCode, machine: &mut ZMachine) {}
 // ret
+pub fn random(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
 
     // return takes one operand, which is the address to return
@@ -178,12 +209,28 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
+pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn ret_popped(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn rfalse(code: &mut OpCode, machine: &mut ZMachine) {}
+
+pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn save(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn set_window(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn sound_effect(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn store(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn storeb(code: &mut OpCode, machine: &mut ZMachine) {}
+
 // this actually operates on the entirety of the dynamic
 // memory, and can be used to alter things outside
 // of the global variable table ( which seems to just be
 // for convenience, but i think his can be used to alter
 // abbreviations or things like that mid-game )
-pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn storew(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (start, index, value) =
@@ -197,7 +244,9 @@ pub fn storew(code: &mut OpCode, machine: &mut ZMachine) {
     // must have been an design reason
 
 }
-pub fn store(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn sub(code: &mut OpCode, machine: &mut ZMachine) {}
+
 pub fn test(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {}
+
+pub fn verify(code: &mut OpCode, machine: &mut ZMachine) {}
