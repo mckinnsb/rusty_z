@@ -1,5 +1,5 @@
-
 use super::opcode::*;
+use super::super::object_properties_view::*;
 use super::ZMachine;
 use super::Stack;
 
@@ -25,8 +25,25 @@ use super::Stack;
 // code, albiet a really effing powerful one,
 // and that would get awkward abstraction-wise
 
-pub fn and(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn add(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn and(code: &mut OpCode, machine: &mut ZMachine) {
+    code.store = true;
+    code.result = code.operands[0].get_value() & code.operands[1].get_value();
+    // done
+}
+
+// maaaybe the most self explanatory jam in the book
+// add two numbers. store it in result
+//
+// zmachine takes care of the 'storing' part
+
+pub fn add(code: &mut OpCode, machine: &mut ZMachine) {
+
+    code.store = true;
+    code.result = ((code.operands[0].get_value() as i16) +
+                   (code.operands[1].get_value() as i16)) as u16;
+    // yay!
+}
+
 pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
 
     // push this current address
@@ -48,6 +65,7 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // push the current offset to the stack
     // note its highly unlikely the conversion will be a problem here;
     // offset is not likely to be greater than 100
+    println!("pushing offset: {}", code.read_bytes);
     machine.call_stack.stack.push(code.read_bytes as u16);
 
     // move program counter
@@ -65,6 +83,12 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
 
     // set the new call stack
     machine.call_stack.switch_to_new_frame();
+
+    // so here, we are going to set the read bytes of the code to #,
+    // this is to prevent the zmachine from advancing the pointer,
+    // since we are manually taking care of that here
+
+    code.read_bytes = 0;
 
     // its important to note here that the function
     // makes space for its arguments and those
@@ -93,6 +117,9 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
         num_locals -= 1
     }
 
+    // first advance the pointer by the header of the function
+    machine.ip += 1;
+
     // advance the pointer. note that if there are
     // any default values for operands, these
     // will automatically be included in the locals
@@ -117,62 +144,252 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // done!
 
 }
-pub fn call_1s(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn clear_attr(code: &mut OpCode, machine: &mut ZMachine) {}
 
-pub fn dec(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn div(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn call_1s(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn clear_attr(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
 
-pub fn get_child(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn get_parent(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn get_sibling(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn dec(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn div(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
 
-pub fn inc(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn get_child(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn get_parent(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
 
+pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
-pub fn je(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn jl(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {}
+    code.store = true;
 
-pub fn load(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn loadb(code: &mut OpCode, machine: &mut ZMachine) {}
+    let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-pub fn mul(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn mod_fn(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn new_line(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn nop(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn or(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn print(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn print_ret(code: &mut OpCode, machine: &mut ZMachine) {}
-
-pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
+    code.result = machine.get_object_view()
+        .get_properties_table_view(object)
+        .get_property(property as u8);
 
 }
 
-pub fn pull(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn push(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {
+
+    code.store = true;
+
+    let property_address = code.operands[0].get_value();
+    let size_byte = machine.get_memory_view().read_at(property_address as u32);
+
+    let ObjectProperty { size, .. } =
+        ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
+
+    code.result = size as u16;
+
+}
+
+pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {
+
+    code.store = true;
+
+    let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    code.result = machine.get_object_view()
+        .get_properties_table_view(object)
+        .get_property_addr(property as u8) as u16;
+
+}
+
+pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn get_sibling(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+
+pub fn inc(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+
+
+// je is the only jump expression which can take 4 arguments
+// as a variable-encoded expression
+//
+// some aspects of the design are kind of confusing, im wondering
+// if this was more for the lexer
+pub fn je(code: &mut OpCode, machine: &mut ZMachine) {
+
+    code.branch = true;
+
+    // god i love rust, watch this
+
+    let candidate = code.operands[0].get_value();
+    let mut condition = 0;
+
+    for operand in code.operands[1..].iter() {
+        match operand {
+            &Operand::Omitted => break,
+            _ => {
+                if candidate == operand.get_value() {
+                    condition = 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    code.result = condition;
+
+}
+
+
+pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {
+    // casting between signed and unsigned values should be OK
+    code.branch = true;
+    code.result = ((code.operands[0].get_value() as i16) >
+                   (code.operands[1].get_value() as i16)) as u16;
+}
+
+pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+
+pub fn jl(code: &mut OpCode, machine: &mut ZMachine) {
+    code.branch = true;
+    code.result = ((code.operands[0].get_value() as i16) <
+                   (code.operands[1].get_value() as i16)) as u16;
+}
+
+// another one of the few instructions that just modifies ip,
+// this time it does absolutely nothing to the call stack
+pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {
+
+    let offset = code.operands[0].get_value() as u32;
+    machine.ip += offset + code.read_bytes;
+
+}
+
+pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {
+    code.branch = true;
+    code.result = (code.operands[0].get_value() == 1) as u16;
+}
+
+pub fn load(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+
+// this also actually operates on the entirety of dynamic memory, and
+// can be used to load things outside the global variables table or stack
+// so again, we actually use the entire memory view here (just like storew)
+
+pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {
+
+    code.store = true;
+
+    let (start, index) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    let address = start + (index * 2);
+
+    code.result = machine.get_memory_view()
+        .read_u16_at(address as u32);
+
+}
+
+pub fn loadb(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+
+pub fn mul(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn mod_fn(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn new_line(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn nop(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn or(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn print_ret(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+
+pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
+
+    let (object, property, value) =
+        (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
+
+    println!("object: {}", object);
+    println!("property: {}", property);
+    println!("value: {}", value);
+
+    machine.get_object_view().
+        get_properties_table_view(object).
+        //its virtually assured property is always a byte value
+        //otherwise, its an inform compiler bug
+        write_property(property as u8, value);
+
+
+}
+
+pub fn pull(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn push(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+
 // ret
-pub fn random(code: &mut OpCode, machine: &mut ZMachine) {}
 pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
 
     // return takes one operand, which is the address to return
@@ -187,19 +404,29 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
         None => panic!("stack underflow when restoring stack offset!"),
     };
 
-    // set the read bytes back to the offset, this is kind
-    // of like mimicing the old instruction
+    // so... return is not technically a store, but we are faking the end
+    // of the "call" here
+    //
+    // only return actually adequately deals with that - everything else just
+    // jumps
+    //
+    // we add the offset to complete the "fake"
+
     code.read_bytes = offset as u32;
+    code.store = true;
+
+    println!("return offset is:{}", offset);
 
     // retrieve the lower and top parts of the address
-    let address_lhalf = machine.call_stack.stack.pop();
     let address_uhalf = machine.call_stack.stack.pop();
+    let address_lhalf = machine.call_stack.stack.pop();
 
     let address = match (address_uhalf, address_lhalf) {
-        (Some(uhalf), Some(lhalf)) => (uhalf as u32) << 16 | (lhalf as u32),
+        (Some(uhalf), Some(lhalf)) => ((((uhalf as u32) << 16) & 0xFF00) | (lhalf as u32)),
         _ => panic!("return call resulted in stack underflow!"),
     };
 
+    println!("address is: {}", address);
 
     // we don't do *2 on this version since we
     // stored the address in-system ( not as part of asm )
@@ -209,22 +436,52 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
-pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn ret_popped(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn rfalse(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn ret_popped(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn rfalse(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
 
-pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn save(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn set_window(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn sound_effect(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn store(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn storeb(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn save(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn set_window(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn sound_effect(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn store(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn storeb(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
 
 // this actually operates on the entirety of the dynamic
 // memory, and can be used to alter things outside
@@ -237,16 +494,28 @@ pub fn storew(code: &mut OpCode, machine: &mut ZMachine) {
         (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
 
     let address = start + (index * 2);
-    machine.get_memory_view().write_u16_at(address as u32, value);
+    machine.get_memory_view()
+        .write_u16_at(address as u32, value);
 
     // thats all we wrote, its strange store calls don't
     // actually follow the "store" mechanism, but there
     // must have been an design reason
 
 }
-pub fn sub(code: &mut OpCode, machine: &mut ZMachine) {}
 
-pub fn test(code: &mut OpCode, machine: &mut ZMachine) {}
-pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn sub(code: &mut OpCode, machine: &mut ZMachine) {
+    code.store = true;
+    code.result = ((code.operands[0].get_value() as i16) -
+                   (code.operands[1].get_value() as i16)) as u16;
+}
 
-pub fn verify(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn test(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+
+pub fn verify(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}

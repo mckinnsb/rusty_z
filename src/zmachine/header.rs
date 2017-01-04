@@ -57,23 +57,23 @@ impl Header {
 
     pub fn create(memory: Rc<RefCell<Vec<u8>>>) -> Header {
 
-        //make two clones - one will be dropped by the end of the scope
+        // make two clones - one will be dropped by the end of the scope
         let memory_for_struct = memory.clone();
         let memory_for_header = memory.clone();
 
         let view = MemoryView {
             memory: memory_for_struct,
-            //the header pointer is the top of the memory
+            // the header pointer is the top of the memory
             pointer: 0,
         };
 
         let version = view.read_at(0x0);
 
         let obj = Header {
-            //header needs its own reference to build views, and also mutate values
+            // header needs its own reference to build views, and also mutate values
             //
-            //the header can only be modified by the interpreter - not the zmachine
-            //itself
+            // the header can only be modified by the interpreter - not the zmachine
+            // itself
             memory: memory_for_header,
             version: version,
             flags: HeaderFlags::process_header(&view, version),

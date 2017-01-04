@@ -5,10 +5,10 @@ pub mod instruction_set;
 use super::header::*;
 use self::opcode::*;
 use super::memory_view::*;
+use super::object_view::*;
 
 use std::rc::*;
 use std::cell::RefCell;
-
 
 // wraps a Vec with some other information
 pub struct Stack {
@@ -23,34 +23,46 @@ pub struct Stack {
 }
 
 impl Stack {
-    // strictly speaking, can only be 0..15
+    // strictly speaking, can only be 1..16
+    // gotta be careful here because you would normally think you would have
+    // to offset by index because of where top_of_frame is, but as it turns
+    // out, starting out with "1" prevents that
     pub fn get_local_variable(&self, num: u8) -> u16 {
+
         // here we will cast because i do want some restrictions
         // around get local variable
         let offset = num as usize;
-        let index = self.top_of_frame + offset + 1;
+        let index = self.top_of_frame + offset;
+
+        println!("num is: {}", num);
+        println!("getting index: {}", index);
+
         self.stack[index as usize]
+
     }
 
     pub fn store_local_variable(&mut self, num: u8, value: u16) {
         let offset = num as usize;
-        let index = self.top_of_frame + offset + 1;
+        let index = self.top_of_frame + offset;
         self.stack[index as usize] = value;
     }
 
     pub fn switch_to_new_frame(&mut self) {
+
         // the stack will never exceed 64,000 entries - i believe
         // the recommended # given by infocom is somewhere in the hundreds
         // the total stack size wont exceed 1024 entries,
         // or about ~16k
         self.stack.push(self.top_of_frame as u16);
+        println!("just pushed top of frame:{}", self.top_of_frame);
         self.top_of_frame = self.top_of_stack();
+
     }
 
     pub fn restore_last_frame(&mut self) {
 
         // dump everything after the top of the frame
-        self.stack.truncate(self.top_of_frame);
+        self.stack.truncate(self.top_of_frame + 1);
 
         // restore the top of the frame ( hidden )
         self.top_of_frame = match self.stack.pop() {
@@ -58,6 +70,7 @@ impl Stack {
             _ => panic!("restoring last frame resulted in stack underflow!"),
         };
 
+        println!("top of frame:{}", self.top_of_frame);
     }
 
     pub fn top_of_stack(&self) -> usize {
@@ -166,7 +179,6 @@ impl ZMachine {
 
     }
 
-
     pub fn get_version(&self) -> u8 {
         self.header.version
     }
@@ -200,16 +212,30 @@ impl ZMachine {
         }
     }
 
-    pub fn get_object_view(&self) -> MemoryView {
-        MemoryView {
-            memory: self.memory.clone(),
+    pub fn get_object_view(&self) -> ObjectView {
+        // we will have to change the values for this in the future when we support
+        // newer versions of the ZMachine ( particularly version 4 )
 
-            // this should be accurate for the lifetime of the
-            // program - i believe the tables interiors may be
-            // changed but the boundries cannot be overridden, these
-            // are set by the compiler
-            pointer: self.header.object_table_location as u32,
+        ObjectView {
+            //object is 9 bytes total long, including the 2 byte address at the end
+            //( 4 + 3 + 2 )
+            object_length: 9,
+            view: MemoryView {
+                memory: self.memory.clone(),
+
+                // this should be accurate for the lifetime of the
+                // program - i believe the tables interiors may be
+                // changed but the boundries cannot be overridden, these
+                // are set by the compiler
+                pointer: self.header.object_table_location as u32,
+            },
+            attributes_length: 4,
+            // 31 words, or 62 bytes
+            property_defaults_length: 62,
+            // 3 relatives, 1 byte each
+            related_obj_length: 1,
         }
+
     }
 
     // the memory view for the whole env
@@ -223,6 +249,8 @@ impl ZMachine {
 
     pub fn next_instruction(&mut self) {
 
+        println!("next instruction! pointer: {:x}", self.ip);
+
         // a non-mutable memory view,
         // reads from the same memory as zmachine
         let view = self.get_frame_view();
@@ -234,6 +262,9 @@ impl ZMachine {
         // note that not all instructions use the top two bytes
 
         let word = view.peek_at_instruction();
+        println!("raw word: {:x}", word[0]);
+        println!("raw word: {:x}", word[1]);
+
         let mut op_code = OpCode::form_opcode(word);
 
         // we get a mutable reference to the call stack
@@ -249,6 +280,11 @@ impl ZMachine {
         }
 
         op_code.execute(self);
+
+        // technically, store and branch cannot happen at the same time
+        // i will not make any enforcement here because the zmachine makes no such
+        // requirement of an interpreter, but given how the opcodes are defined,
+        // that never happens.
 
         if op_code.store {
 
@@ -267,9 +303,39 @@ impl ZMachine {
         // we rely on the op to set the ip,
         // otherwise we just increment it
 
-        if !op_code.branch {
-            self.ip += op_code.read_bytes;
+        match op_code.branch {
+            true => {
+
+                let condition = op_code.result;
+                let true_mask = 0b10000000;
+                let view = self.get_frame_view();
+                let branch_on_true = (view.read_at_head(op_code.read_bytes) & true_mask) ==
+                                     true_mask;
+
+                let branch = (branch_on_true && condition == 1) ||
+                             (!branch_on_true && condition == 0);
+
+                if (branch) {
+
+                    let two_bits_mask = 0b01000000;
+                    let one_bit = (view.read_at_head(op_code.read_bytes) & two_bits_mask) ==
+                                  two_bits_mask;
+
+                    let mut offset: u16 = if (one_bit) {
+                        (view.read_at_head(op_code.read_bytes) & 0b00111111) as u16
+                    } else {
+                        view.read_u16_at_head(op_code.read_bytes) & 0b0011111111111111
+                    };
+
+                    self.ip = self.ip + offset as u32;
+                } else {
+                    self.ip += op_code.read_bytes;
+                }
+
+            }
+            false => self.ip += op_code.read_bytes,
         }
+
 
         // self.running = false;
 
@@ -285,7 +351,6 @@ impl ZMachine {
     // belong to the machine anyway - you will be mutating one
     // of them exactly for each type. operands of op-codes
     // are basically read only, but CAN effect the stack
-
     pub fn store_variable(&mut self, address: u8, value: u16) {
         match address {
             0 => self.call_stack.stack.push(value),

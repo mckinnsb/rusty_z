@@ -5,7 +5,17 @@ use std::cell::RefCell;
 // from zmachine so we can give the memory and stack in different states
 // immutable/mutable )
 //
-// we use this
+// we use this in a lot of different ways, its kind of a catch all utility
+// wrapper around the Rc<RefCell<Vec<u8>>> ( the memory map ), which we would
+// be passing around anyway
+//
+// sometimes we can just use it directly when the memory structure is very
+// simple ( as in global variables ), but in other cases where we have situations
+// such as objects and their property tables, the structure becomes complex
+// and to a large degree variable ( objects may be many bytes in size ),
+//
+// so in those instances, we wrap a memoryview around another object and
+// expose a different api
 
 pub struct MemoryView {
     pub memory: Rc<RefCell<Vec<u8>>>,
@@ -29,21 +39,19 @@ pub struct MemoryView {
     // 1-3: 2, or a max size of 128k
     // 4-5: 4, or a max size of 256k
     // 6-8: 8, or a max size of 512k
-
+    //
     // i don't really care about the integer size; you are on your own
     // buddy ( regarding overflows )
     //
     // i could make struct/tuple struct that maybe verifies that the
     // value is below some multiple of 2^16, but that feels like overkill
     // for now
-
     pub pointer: u32,
 }
 
 impl MemoryView {
-
-    //i could return a usize here, but that means more
-    //unnecessary casting
+    // i could return a usize here, but that means more
+    // unnecessary casting
 
     fn program_offset(&self, offset: u32) -> u32 {
         (self.pointer + (offset))
@@ -58,6 +66,7 @@ impl MemoryView {
     }
 
     pub fn read_at(&self, address: u32) -> u8 {
+        println!("address: {}", address);
         self.memory.borrow()[address as usize]
     }
 
@@ -66,8 +75,7 @@ impl MemoryView {
     }
 
     pub fn read_u16_at(&self, address: u32) -> u16 {
-        let result = (self.read_at(address) as u16) << 8 |
-                      self.read_at(address + 1) as u16;
+        let result = (self.read_at(address) as u16) << 8 | self.read_at(address + 1) as u16;
         result
     }
 
@@ -84,7 +92,7 @@ impl MemoryView {
         self.write_at(self.pointer + offset, value);
     }
 
-    pub fn write_u16_at(&self, address: u32, value: u16 ) {
+    pub fn write_u16_at(&self, address: u32, value: u16) {
         let upper_half = (value >> 8 & 0xFF) as u8;
         let lower_half = (value & 0xFF) as u8;
 
@@ -92,8 +100,7 @@ impl MemoryView {
         self.write_at(address + 1, lower_half);
     }
 
-    pub fn write_u16_at_head(&self, offset: u32, value: u16 ) {
-        self.write_u16_at( self.pointer + offset, value );
+    pub fn write_u16_at_head(&self, offset: u32, value: u16) {
+        self.write_u16_at(self.pointer + offset, value);
     }
-
 }
