@@ -17,6 +17,14 @@ use super::Stack;
 pub enum OpForm {
     Short,
     Long,
+    // there are cases where we encode a 2-OP code as a variable code,
+    // in order to overcome the constraints of the long form
+    // ( such as to add two large constants )
+    // we actually have to specify a different OpForm here because
+    // we are going to match against this to determine the instruction,
+    // and merely matching "OpForm::Variable" with operand_count: 2 will
+    // lead to collisions, such as between je and storew.
+    LongAsVariable,
     Variable,
 }
 
@@ -27,6 +35,7 @@ impl fmt::Display for OpForm {
                match self {
                    &OpForm::Short => "Short",
                    &OpForm::Long => "Long",
+                   &OpForm::LongAsVariable => "Long as Variable",
                    &OpForm::Variable => "Variable",
                })
     }
@@ -162,32 +171,56 @@ impl OpCode {
         // not sure if this is better nested, or split apart
         // at all
         let instruction = match (&code.form, code.operand_count, code.code) {
-            //2 op - long
-            (&OpForm::Long, _, 0x1) => instruction_set::je,
-            (&OpForm::Long, _, 0x2) => instruction_set::jl,
-            (&OpForm::Long, _, 0x3) => instruction_set::jg,
-            (&OpForm::Long, _, 0x4) => instruction_set::dec_chk,
-            (&OpForm::Long, _, 0x5) => instruction_set::inc_chk,
-            (&OpForm::Long, _, 0x6) => instruction_set::jin,
-            (&OpForm::Long, _, 0x7) => instruction_set::test,
-            (&OpForm::Long, _, 0x8) => instruction_set::or,
-            (&OpForm::Long, _, 0x9) => instruction_set::and,
-            (&OpForm::Long, _, 0xA) => instruction_set::test_attr,
-            (&OpForm::Long, _, 0xB) => instruction_set::set_attr,
-            (&OpForm::Long, _, 0xC) => instruction_set::clear_attr,
-            (&OpForm::Long, _, 0xD) => instruction_set::store,
-            (&OpForm::Long, _, 0xE) => instruction_set::insert_obj,
-            (&OpForm::Long, _, 0xF) => instruction_set::loadw,
-            (&OpForm::Long, _, 0x10) => instruction_set::loadb,
-            (&OpForm::Long, _, 0x11) => instruction_set::get_prop,
-            (&OpForm::Long, _, 0x12) => instruction_set::get_prop_addr,
-            (&OpForm::Long, _, 0x13) => instruction_set::get_next_prop,
-            (&OpForm::Long, _, 0x14) => instruction_set::add,
-            (&OpForm::Long, _, 0x15) => instruction_set::sub,
-            (&OpForm::Long, _, 0x16) => instruction_set::mul,
-            (&OpForm::Long, _, 0x17) => instruction_set::div,
-            (&OpForm::Long, _, 0x18) => instruction_set::mod_fn,
-            //1 op
+            // 2 op - long
+            (&OpForm::Long, _, 0x1) |
+            (&OpForm::LongAsVariable, _, 0x1) => instruction_set::je,
+            (&OpForm::Long, _, 0x2) |
+            (&OpForm::LongAsVariable, _, 0x2) => instruction_set::jl,
+            (&OpForm::Long, _, 0x3) |
+            (&OpForm::LongAsVariable, _, 0x3) => instruction_set::jg,
+            (&OpForm::Long, _, 0x4) |
+            (&OpForm::LongAsVariable, _, 0x4) => instruction_set::dec_chk,
+            (&OpForm::Long, _, 0x5) |
+            (&OpForm::LongAsVariable, _, 0x5) => instruction_set::inc_chk,
+            (&OpForm::Long, _, 0x6) |
+            (&OpForm::LongAsVariable, _, 0x6) => instruction_set::jin,
+            (&OpForm::Long, _, 0x7) |
+            (&OpForm::LongAsVariable, _, 0x7) => instruction_set::test,
+            (&OpForm::Long, _, 0x8) |
+            (&OpForm::LongAsVariable, _, 0x8) => instruction_set::or,
+            (&OpForm::Long, _, 0x9) |
+            (&OpForm::LongAsVariable, _, 0x9) => instruction_set::and,
+            (&OpForm::Long, _, 0xA) |
+            (&OpForm::LongAsVariable, _, 0xA) => instruction_set::test_attr,
+            (&OpForm::Long, _, 0xB) |
+            (&OpForm::LongAsVariable, _, 0xB) => instruction_set::set_attr,
+            (&OpForm::Long, _, 0xC) |
+            (&OpForm::LongAsVariable, _, 0xC) => instruction_set::clear_attr,
+            (&OpForm::Long, _, 0xD) |
+            (&OpForm::LongAsVariable, _, 0xD) => instruction_set::store,
+            (&OpForm::Long, _, 0xE) |
+            (&OpForm::LongAsVariable, _, 0xE) => instruction_set::insert_obj,
+            (&OpForm::Long, _, 0xF) |
+            (&OpForm::LongAsVariable, _, 0xF) => instruction_set::loadw,
+            (&OpForm::Long, _, 0x10) |
+            (&OpForm::LongAsVariable, _, 0x10) => instruction_set::loadb,
+            (&OpForm::Long, _, 0x11) |
+            (&OpForm::LongAsVariable, _, 0x11) => instruction_set::get_prop,
+            (&OpForm::Long, _, 0x12) |
+            (&OpForm::LongAsVariable, _, 0x12) => instruction_set::get_prop_addr,
+            (&OpForm::Long, _, 0x13) |
+            (&OpForm::LongAsVariable, _, 0x13) => instruction_set::get_next_prop,
+            (&OpForm::Long, _, 0x14) |
+            (&OpForm::LongAsVariable, _, 0x14) => instruction_set::add,
+            (&OpForm::Long, _, 0x15) |
+            (&OpForm::LongAsVariable, _, 0x15) => instruction_set::sub,
+            (&OpForm::Long, _, 0x16) |
+            (&OpForm::LongAsVariable, _, 0x16) => instruction_set::mul,
+            (&OpForm::Long, _, 0x17) |
+            (&OpForm::LongAsVariable, _, 0x17) => instruction_set::div,
+            (&OpForm::Long, _, 0x18) |
+            (&OpForm::LongAsVariable, _, 0x18) => instruction_set::mod_fn,
+            // 1 op
             (&OpForm::Short, 1, 0x0) => instruction_set::jz,
             (&OpForm::Short, 1, 0x1) => instruction_set::get_sibling,
             (&OpForm::Short, 1, 0x2) => instruction_set::get_child,
@@ -202,16 +235,16 @@ impl OpCode {
             (&OpForm::Short, 1, 0xB) => instruction_set::ret,
             (&OpForm::Short, 1, 0xC) => instruction_set::jump,
             (&OpForm::Short, 1, 0xD) => instruction_set::print_paddr,
-            //0 op
+            // 0 op
             (&OpForm::Short, 0, 0x0) => instruction_set::rtrue,
             (&OpForm::Short, 0, 0x1) => instruction_set::rfalse,
             (&OpForm::Short, 0, 0x2) => instruction_set::print,
             (&OpForm::Short, 0, 0x3) => instruction_set::print_ret,
             (&OpForm::Short, 0, 0x4) => instruction_set::nop,
-            //these next two calls are illegal after version 5
+            // these next two calls are illegal after version 5
             (&OpForm::Short, 0, 0x5) => instruction_set::save,
             (&OpForm::Short, 0, 0x6) => instruction_set::restore,
-            //still legal
+            // still legal
             (&OpForm::Short, 0, 0x7) => instruction_set::restart,
             (&OpForm::Short, 0, 0x8) => instruction_set::ret_popped,
             (&OpForm::Short, 0, 0x9) => instruction_set::pop,
@@ -219,7 +252,7 @@ impl OpCode {
             (&OpForm::Short, 0, 0xB) => instruction_set::new_line,
             (&OpForm::Short, 0, 0xC) => instruction_set::show_status,
             (&OpForm::Short, 0, 0xD) => instruction_set::verify,
-            //variable op codes
+            // variable op codes
             (&OpForm::Variable, _, 0x0) => instruction_set::call,
             (&OpForm::Variable, _, 0x1) => instruction_set::storew,
             (&OpForm::Variable, _, 0x2) => instruction_set::storeb,
@@ -235,7 +268,7 @@ impl OpCode {
             (&OpForm::Variable, _, 0x13) => instruction_set::output_stream,
             (&OpForm::Variable, _, 0x14) => instruction_set::input_stream,
             (&OpForm::Variable, _, 0x15) => instruction_set::sound_effect,
-            //end
+            // end
             _ => panic!("Instruction not found!"),
         };
 
@@ -396,7 +429,6 @@ impl OpCode {
 
         // we read the first 2 here, as indicated by second byte above
         code.read_bytes = 2;
-        code.form = OpForm::Variable;
 
         // mask out the top three bits, and we have our opcode
         // (bottom five bits)
@@ -404,44 +436,31 @@ impl OpCode {
 
         match id {
             0xc0...0xdf => {
-
-                code.operand_count = 2;
-
-                // we shift the bits in the second byte to get
-                // 2-bit flags which sign the type of each upcoming
-                // operand, here we are just getting the byte by
-                // shifting and anding against a binary value 11
-
-                let t0 = (second_byte >> 6) & 0b11;
-                let t1 = (second_byte >> 4) & 0b11;
-
-                code.operands[0] = OpCode::get_type_for_bit(t0);
-                code.operands[1] = OpCode::get_type_for_bit(t1);
-
+                // this is a "long op encoded as a variable op"
+                // its basically a way to overcome the constraints
+                // of the long opcode... but im not entirely
+                // sure why they did it like this ( it makes a mess
+                // of the opcode table )
+                code.form = OpForm::LongAsVariable;
             }
             0xe0...0xff => {
-
-                // this is variable, so really we want to see
-                // how many there are
-                //
-                // the first "omitted" result means we are done
-
-                for i in 0..code.operands.len() {
-
-                    let t = (second_byte >> (6 - (i * 2))) & 0b11;
-
-                    if t == 0b11 {
-                        break;
-                    }
-
-                    code.operands[i] = OpCode::get_type_for_bit(t);
-                    code.operand_count = code.operand_count + 1;
-
-                }
-
+                // this is a "true variable function"
+                code.form = OpForm::Variable;
             }
             // this should not be reachable
             _ => unreachable!(),
+        }
+
+        for i in 0..code.operands.len() {
+
+            let t = (second_byte >> (6 - (i * 2))) & 0b11;
+
+            if t == 0b11 {
+                break;
+            }
+
+            code.operands[i] = OpCode::get_type_for_bit(t);
+            code.operand_count = code.operand_count + 1;
 
         }
 
