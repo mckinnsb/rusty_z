@@ -29,6 +29,8 @@ pub struct Header {
     pub global_vars_table_location: u16,
     // where does static memory begin?
     pub static_memory_start_location: u16,
+    // where are the abbreviations?
+    pub abbreviations_location: u16,
 }
 
 impl Header {
@@ -83,6 +85,7 @@ impl Header {
             object_table_location: view.read_u16_at(0xA),
             global_vars_table_location: view.read_u16_at(0xC),
             static_memory_start_location: view.read_u16_at(0xE),
+            abbreviations_location: view.read_u16_at(0x18),
         };
 
         obj

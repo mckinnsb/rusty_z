@@ -1,5 +1,6 @@
-use super::opcode::*;
 use super::super::object_properties_view::*;
+use super::super::zstring::*;
+use super::opcode::*;
 use super::ZMachine;
 use super::Stack;
 
@@ -65,7 +66,8 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // push the current offset to the stack
     // note its highly unlikely the conversion will be a problem here;
     // offset is not likely to be greater than 100
-    println!("pushing offset: {}", code.read_bytes);
+    //println!("pushing offset: {}", code.read_bytes);
+    
     machine.call_stack.stack.push(code.read_bytes as u16);
 
     // move program counter
@@ -155,16 +157,65 @@ pub fn clear_attr(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn dec(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
+//dec check decrements a variable and branches if the variable is now
+//less than value
+//
+//this is not a store function, it actually operates under different
+//rules in which the stack is not popped when read or written to
+
 pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.branch = true;
+
+    let (variable, value) = ( code.operands[0].get_value(),
+                              code.operands[1].get_value() );
+
+    println!( "variable: {}", variable );
+    let mut current = machine.read_variable(variable as u8);
+    current -= 1;
+
+    machine.write_variable_in_place(variable as u8, current);
+
+    match current < value {
+        false => code.result = 0,
+        true => code.result = 1,
+    }
+
+    //done
+
 }
+
+//signed division, should halt interpreter on divide by zero ( the inform
+//compiler should guarantee that never happens )
+
 pub fn div(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.store = true;
+
+    let (dividend, divisor) = (code.operands[0].get_value(),
+                               code.operands[1].get_value());
+
+    if divisor == 0 {
+        panic!( "division by zero!" );
+    }
+
+    code.result = ( dividend as i16 /
+                    divisor as i16 ) as u16;
+
 }
 
 pub fn get_child(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.store = true;
+    code.branch = true;
+
+    let object = code.operands[0].get_value();
+
+    code.result = machine.get_object_view(object).get_child();
+
 }
+
 pub fn get_parent(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
@@ -175,9 +226,10 @@ pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    code.result = machine.get_object_view()
-        .get_properties_table_view(object)
-        .get_property(property as u8);
+    code.result = machine.get_object_view(object)
+        .get_properties_table_view()
+        .get_property(property as u8)
+        .value;
 
 }
 
@@ -188,7 +240,7 @@ pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {
     let property_address = code.operands[0].get_value();
     let size_byte = machine.get_memory_view().read_at(property_address as u32);
 
-    let ObjectProperty { size, .. } =
+    let ObjectPropertyInfo { size, .. } =
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
     code.result = size as u16;
@@ -201,8 +253,8 @@ pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    code.result = machine.get_object_view()
-        .get_properties_table_view(object)
+    code.result = machine.get_object_view(object)
+        .get_properties_table_view()
         .get_property_addr(property as u8) as u16;
 
 }
@@ -258,7 +310,7 @@ pub fn je(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
-
+// this function jumps if greater than
 pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {
     // casting between signed and unsigned values should be OK
     code.branch = true;
@@ -266,10 +318,21 @@ pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {
                    (code.operands[1].get_value() as i16)) as u16;
 }
 
+// this function jumps if the object is a child of the other object,
 pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.branch = true;
+
+    let (child, parent) = (code.operands[0].get_value(),
+                           machine.get_object_view(code.operands[1].get_value()));
+
+    // this will convert to 1
+    code.result = (parent.get_child() == child) as u16;
+    // done!
+
 }
 
+// this function jumps if less than
 pub fn jl(code: &mut OpCode, machine: &mut ZMachine) {
     code.branch = true;
     code.result = ((code.operands[0].get_value() as i16) <
@@ -315,21 +378,36 @@ pub fn loadb(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
+//signed multiplication
 pub fn mul(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    code.store = true;
+    code.result = ((code.operands[0].get_value() as i16) *
+                   (code.operands[1].get_value() as i16)) as u16;
+    // done
 }
+
+//signed modulo
 pub fn mod_fn(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.store = true;
+    code.result = ((code.operands[0].get_value() as i16) %
+                   (code.operands[1].get_value() as i16)) as u16;
+    // done
 }
+
 pub fn new_line(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 pub fn nop(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn or(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    code.store = true;
+    code.result = code.operands[0].get_value() | code.operands[1].get_value();
+    // done
 }
+
 pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
@@ -339,9 +417,22 @@ pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    //println!("read bytes: {}", code.read_bytes);
+
+    let view = machine.get_frame_view();
+    let abbreviations_view = machine.get_abbreviations_view();
+
+    let string = ZString::create(code.read_bytes, &view, &abbreviations_view);
+
+    println!("{}", string);
+
+    code.read_bytes += string.encoded_length;
+
 }
+
 pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
@@ -366,12 +457,12 @@ pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
     let (object, property, value) =
         (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
 
-    println!("object: {}", object);
-    println!("property: {}", property);
-    println!("value: {}", value);
+    //println!("object: {}", object);
+    //println!("property: {}", property);
+    //println!("value: {}", value);
 
-    machine.get_object_view().
-        get_properties_table_view(object).
+    machine.get_object_view(object).
+        get_properties_table_view().
         //its virtually assured property is always a byte value
         //otherwise, its an inform compiler bug
         write_property(property as u8, value);
@@ -415,7 +506,7 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
     code.read_bytes = offset as u32;
     code.store = true;
 
-    println!("return offset is:{}", offset);
+    //println!("return offset is:{}", offset);
 
     // retrieve the lower and top parts of the address
     let address_uhalf = machine.call_stack.stack.pop();
@@ -426,7 +517,7 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
         _ => panic!("return call resulted in stack underflow!"),
     };
 
-    println!("address is: {}", address);
+    //println!("address is: {}", address);
 
     // we don't do *2 on this version since we
     // stored the address in-system ( not as part of asm )
@@ -473,12 +564,21 @@ pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
+// stores that aren't stores trip me up, honestly
 pub fn store(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    machine.store_variable(variable as u8, value);
+    // done
+
 }
+
 pub fn storeb(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
@@ -512,8 +612,16 @@ pub fn sub(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn test(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.branch = true;
+
+    let (object, attribute) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    code.result = machine.get_object_view(object)
+        .has_attribute(attribute) as u16;
+
 }
 
 pub fn verify(code: &mut OpCode, machine: &mut ZMachine) {

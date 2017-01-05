@@ -34,8 +34,8 @@ impl Stack {
         let offset = num as usize;
         let index = self.top_of_frame + offset;
 
-        println!("num is: {}", num);
-        println!("getting index: {}", index);
+        //println!("num is: {}", num);
+        //println!("getting index: {}", index);
 
         self.stack[index as usize]
 
@@ -54,7 +54,7 @@ impl Stack {
         // the total stack size wont exceed 1024 entries,
         // or about ~16k
         self.stack.push(self.top_of_frame as u16);
-        println!("just pushed top of frame:{}", self.top_of_frame);
+        //println!("just pushed top of frame:{}", self.top_of_frame);
         self.top_of_frame = self.top_of_stack();
 
     }
@@ -70,7 +70,7 @@ impl Stack {
             _ => panic!("restoring last frame resulted in stack underflow!"),
         };
 
-        println!("top of frame:{}", self.top_of_frame);
+        //println!("top of frame:{}", self.top_of_frame);
     }
 
     pub fn top_of_stack(&self) -> usize {
@@ -183,6 +183,16 @@ impl ZMachine {
         self.header.version
     }
 
+    pub fn get_abbreviations_view(&self) -> MemoryView {
+        MemoryView {
+            memory: self.memory.clone(),
+
+            // note this will only be accurate per-instruction;
+            // don't try to use the old instructions memory view
+            // to pass to opcodes
+            pointer: self.header.abbreviations_location as u32,
+        }
+    }
     // gets a view into the current program
     // stack
     pub fn get_frame_view(&self) -> MemoryView {
@@ -212,26 +222,38 @@ impl ZMachine {
         }
     }
 
-    pub fn get_object_view(&self) -> ObjectView {
+    pub fn get_object_view(&self, object_id: u16) -> ObjectView {
+
         // we will have to change the values for this in the future when we support
         // newer versions of the ZMachine ( particularly version 4 )
 
+        // we should really be getting this from the header - ill save it for a future
+        // refactor, minor issue right now
+        let object_length = 9;
+        let property_defaults_length = 62;
+
+        // calculate offset and object location
+        let offset = ((object_id as u32 - 1) * object_length);
+        let object_location =
+            self.header.object_table_location as u32 + property_defaults_length as u32 + offset;
+
+
         ObjectView {
-            //object is 9 bytes total long, including the 2 byte address at the end
-            //( 4 + 3 + 2 )
-            object_length: 9,
+            attributes_length: 4,
+            defaults_view: MemoryView {
+                memory: self.memory.clone(),
+                pointer: self.header.object_table_location as u32,
+            },
             view: MemoryView {
                 memory: self.memory.clone(),
 
                 // this should be accurate for the lifetime of the
                 // program - i believe the tables interiors may be
                 // changed but the boundries cannot be overridden, these
-                // are set by the compiler
-                pointer: self.header.object_table_location as u32,
+                // are set by the compiler, i think in inform you "declare"
+                // the size of properties ahead of time
+                pointer: object_location,
             },
-            attributes_length: 4,
-            // 31 words, or 62 bytes
-            property_defaults_length: 62,
             // 3 relatives, 1 byte each
             related_obj_length: 1,
         }
@@ -249,7 +271,7 @@ impl ZMachine {
 
     pub fn next_instruction(&mut self) {
 
-        println!("next instruction! pointer: {:x}", self.ip);
+        //println!("next instruction! pointer: {:x}", self.ip);
 
         // a non-mutable memory view,
         // reads from the same memory as zmachine
@@ -262,8 +284,8 @@ impl ZMachine {
         // note that not all instructions use the top two bytes
 
         let word = view.peek_at_instruction();
-        println!("raw word: {:x}", word[0]);
-        println!("raw word: {:x}", word[1]);
+        //println!("raw word: {:x}", word[0]);
+        //println!("raw word: {:x}", word[1]);
 
         let mut op_code = OpCode::form_opcode(word);
 
@@ -276,6 +298,7 @@ impl ZMachine {
             let stack = &mut self.call_stack;
             // have the view.
             op_code.read_variables(view, globals, stack);
+            println!("{:x}", self.ip);
             println!("{}", op_code);
         }
 
@@ -312,7 +335,11 @@ impl ZMachine {
                 let branch_on_true = (view.read_at_head(op_code.read_bytes) & true_mask) ==
                                      true_mask;
 
-                let branch = (branch_on_true && condition == 1) ||
+                // we branch when the value is non-zero;
+                // this is helpful for get child and other branches which
+                // also return values
+
+                let branch = (branch_on_true && condition > 0) ||
                              (!branch_on_true && condition == 0);
 
                 if (branch) {
@@ -329,7 +356,7 @@ impl ZMachine {
 
                     self.ip = self.ip + offset as u32;
                 } else {
-                    self.ip += op_code.read_bytes;
+                    self.ip += op_code.read_bytes + 1;
                 }
 
             }
@@ -341,16 +368,37 @@ impl ZMachine {
 
     }
 
-    // the machine always stores variables at the end of instruction calls,
-    // and accesses variables while processing the call;
-    //
-    // this has the interesting side effect of having the get in
-    // the op code, and the store in the machine
-    //
-    // another reason for this is that most of the storage options
-    // belong to the machine anyway - you will be mutating one
-    // of them exactly for each type. operands of op-codes
-    // are basically read only, but CAN effect the stack
+    //this JUST reads a variable, but does not modify the stack in any way
+    //its different from the opcode functions, which we may merge into zmachine,
+    //or may not
+    pub fn read_variable(&self, address: u8) -> u16 {
+        match address {
+            // 0, its the stack, pop it and return
+            0 => self.call_stack.stack[self.call_stack.stack.len() -1],
+            // 1 to 15, its a local
+            i @ 0x01...0x0f => self.call_stack.get_local_variable(i),
+            // 16 to 255, it's a global variable.
+            global @ 0x10...0xff => self.
+                                      get_global_variables_view().
+                                      read_u16_at_head(global as u32),
+            _ => unreachable!(),
+        }
+    }
+
+    //this writes a variable in place - it really only specializes on the stack,
+    //otherwise it wraps store_variable
+    pub fn write_variable_in_place(&mut self, address: u8, value: u16) {
+        match address {
+            0 => {
+                let last = self.call_stack.stack.len()-1;
+                self.call_stack.stack[last] = value;
+            }
+            _ => self.store_variable(address, value),
+        }
+    }
+
+    // the machine always stores variables during or at the end of instruction calls,
+    // and accesses variables before processing the call;
     pub fn store_variable(&mut self, address: u8, value: u16) {
         match address {
             0 => self.call_stack.stack.push(value),
@@ -362,4 +410,6 @@ impl ZMachine {
             _ => unreachable!(),
         }
     }
+
+
 }

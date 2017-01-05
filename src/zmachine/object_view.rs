@@ -14,13 +14,11 @@ use super::object_properties_view::*;
 const properties_length: u32 = 2;
 
 pub struct ObjectView {
-    // how long is an objects attribute field, in bytes?
+    // how long are the attributes in bytes?
     pub attributes_length: u32,
-    // how long is an object total, in bytes?
-    pub object_length: u32,
-    // how long is the property defaults table length in bytes?
-    // zmachine standards doc gives this in 16-bit words
-    pub property_defaults_length: u32,
+    // this is the property defaults view - mostly
+    // used to create object property views ( which are in different places in memory )
+    pub defaults_view: MemoryView,
     // how long is the parent/child/sibling? (in bytes)
     // its assumed that all are the same size
     pub related_obj_length: u32,
@@ -31,29 +29,62 @@ pub struct ObjectView {
 }
 
 impl ObjectView {
-    pub fn get_properties_table_view(&self, index: u16) -> ObjectPropertiesView {
+    // an object can have only one child - everything else in the "bag" is a sibling
+    // of the child
+    pub fn get_child(&self) -> u16 {
 
-        println!("starting: {}", self.view.pointer);
-
-        let offset = ((index as u32 - 1) * self.object_length);
         // first we start from the beginning of the object table
         let pointer_position = self.view.pointer +
-                               //then offset be default properties table
-                               self.property_defaults_length +
-                               //then offset by index of object by size
-                               offset +
+                               //then offset by attribute length + all relatives length
+                               self.attributes_length +
+                               //the order is parent, sibling, child
+                               self.related_obj_length * 2;
+
+        let child_id = self.view.read_u16_at(pointer_position);
+
+        child_id
+
+    }
+
+    pub fn get_properties_table_view(&self) -> ObjectPropertiesView {
+
+        //println!("starting: {}", self.view.pointer);
+        // first we start from the beginning of the object table
+        let pointer_position = self.view.pointer +
                                //then offset by attribute length + all relatives length
                                self.attributes_length +
                                self.related_obj_length * 3;
 
-        // now, actually read the address
+        // we should now be at the properties table address
         // object addresses are not packed and are in dynamic mem
 
-        println!("reading: {}", pointer_position);
+        //println!("reading: {}", pointer_position);
         let pointer = self.view.read_u16_at(pointer_position) as u32;
-        println!("read: {}", pointer);
+        //println!("read: {}", pointer);
 
-        ObjectPropertiesView::create(pointer, &self.view)
+        ObjectPropertiesView::create(pointer, &self.defaults_view, &self.view)
 
+    }
+
+    pub fn has_attribute(&self, attribute: u16) -> bool {
+        // this will also have to change with the new version
+        // v4 may have up to 48
+        //println!("attribute:{}", attribute);
+        //println!("first half:{}", self.view.read_u16_at(0));
+        //println!("second half:{}", self.view.read_u16_at(1));
+
+        match attribute {
+            i @ 0...15 => ObjectView::is_bit_set_in_u16(i as u8, self.view.read_u16_at(0)),
+            i @ 16...31 => ObjectView::is_bit_set_in_u16((i as u8) - 16, self.view.read_u16_at(1)),
+            _ => panic!("attempt to read an invalid attribute"),
+        }
+    }
+
+    pub fn is_bit_set(num: u8, byte: u8) -> bool {
+        num << 1 & byte != 0
+    }
+
+    pub fn is_bit_set_in_u16(num: u8, word: u16) -> bool {
+        num << 1 & word as u8 != 0
     }
 }

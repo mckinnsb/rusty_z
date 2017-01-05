@@ -17,6 +17,8 @@ use std::cell::RefCell;
 // so in those instances, we wrap a memoryview around another object and
 // expose a different api
 
+// should have done this a while ago
+#[derive(Clone)]
 pub struct MemoryView {
     pub memory: Rc<RefCell<Vec<u8>>>,
 
@@ -66,7 +68,7 @@ impl MemoryView {
     }
 
     pub fn read_at(&self, address: u32) -> u8 {
-        println!("address: {}", address);
+        // println!("address: {}", address);
         self.memory.borrow()[address as usize]
     }
 
