@@ -34,8 +34,8 @@ impl Stack {
         let offset = num as usize;
         let index = self.top_of_frame + offset;
 
-        //println!("num is: {}", num);
-        //println!("getting index: {}", index);
+        // println!("num is: {}", num);
+        // println!("getting index: {}", index);
 
         self.stack[index as usize]
 
@@ -54,7 +54,7 @@ impl Stack {
         // the total stack size wont exceed 1024 entries,
         // or about ~16k
         self.stack.push(self.top_of_frame as u16);
-        //println!("just pushed top of frame:{}", self.top_of_frame);
+        // println!("just pushed top of frame:{}", self.top_of_frame);
         self.top_of_frame = self.top_of_stack();
 
     }
@@ -70,7 +70,7 @@ impl Stack {
             _ => panic!("restoring last frame resulted in stack underflow!"),
         };
 
-        //println!("top of frame:{}", self.top_of_frame);
+        // println!("top of frame:{}", self.top_of_frame);
     }
 
     pub fn top_of_stack(&self) -> usize {
@@ -222,6 +222,10 @@ impl ZMachine {
         }
     }
 
+    // object id is a u16 because in future versions, there can be up
+    // to 65k objects. id rather standardize that ahead of time because
+    // it will be all over the instruction set
+
     pub fn get_object_view(&self, object_id: u16) -> ObjectView {
 
         // we will have to change the values for this in the future when we support
@@ -236,7 +240,6 @@ impl ZMachine {
         let offset = ((object_id as u32 - 1) * object_length);
         let object_location =
             self.header.object_table_location as u32 + property_defaults_length as u32 + offset;
-
 
         ObjectView {
             attributes_length: 4,
@@ -271,7 +274,7 @@ impl ZMachine {
 
     pub fn next_instruction(&mut self) {
 
-        //println!("next instruction! pointer: {:x}", self.ip);
+        // println!("next instruction! pointer: {:x}", self.ip);
 
         // a non-mutable memory view,
         // reads from the same memory as zmachine
@@ -284,9 +287,13 @@ impl ZMachine {
         // note that not all instructions use the top two bytes
 
         let word = view.peek_at_instruction();
-        //println!("raw word: {:x}", word[0]);
-        //println!("raw word: {:x}", word[1]);
+        // println!("raw word: {:x}", word[0]);
+        // println!("raw word: {:x}", word[1]);
 
+        //println!("******************");
+        //println!("******************");
+        //println!("");
+        //println!("instruction at : {:x}", self.ip);
         let mut op_code = OpCode::form_opcode(word);
 
         // we get a mutable reference to the call stack
@@ -298,8 +305,7 @@ impl ZMachine {
             let stack = &mut self.call_stack;
             // have the view.
             op_code.read_variables(view, globals, stack);
-            println!("{:x}", self.ip);
-            println!("{}", op_code);
+            //println!("{}", op_code);
         }
 
         op_code.execute(self);
@@ -329,11 +335,16 @@ impl ZMachine {
         match op_code.branch {
             true => {
 
-                let condition = op_code.result;
-                let true_mask = 0b10000000;
+                //println!("code may branch");
                 let view = self.get_frame_view();
-                let branch_on_true = (view.read_at_head(op_code.read_bytes) & true_mask) ==
-                                     true_mask;
+
+                let condition = op_code.result;
+
+                let true_mask = 0b10000000;
+                let branch_on_true = (view.read_at_head(op_code.read_bytes) & true_mask) != 0;
+
+                let two_bits_mask = 0b01000000;
+                let one_bit = (view.read_at_head(op_code.read_bytes) & two_bits_mask) != 0;
 
                 // we branch when the value is non-zero;
                 // this is helpful for get child and other branches which
@@ -342,55 +353,81 @@ impl ZMachine {
                 let branch = (branch_on_true && condition > 0) ||
                              (!branch_on_true && condition == 0);
 
+                let branch_byte_offset = match one_bit {
+                    true => 1,
+                    false => 2,
+                };
+
                 if (branch) {
 
-                    let two_bits_mask = 0b01000000;
-                    let one_bit = (view.read_at_head(op_code.read_bytes) & two_bits_mask) ==
-                                  two_bits_mask;
+                    //println!("branching");
 
-                    let mut offset: u16 = if (one_bit) {
-                        (view.read_at_head(op_code.read_bytes) & 0b00111111) as u16
-                    } else {
-                        view.read_u16_at_head(op_code.read_bytes) & 0b0011111111111111
+                    let mut offset = match one_bit {
+                        // we have to mask against the control bits, here
+                        true => (view.read_at_head(op_code.read_bytes) & 0b00111111) as u32,
+                        false => (view.read_u16_at_head(op_code.read_bytes) & 0b0011111111111111) as u32,
                     };
 
-                    self.ip = self.ip + offset as u32;
+                    // branch address is defined as "address after branch data",
+                    // or self.ip + op_code.read_bytes + offset
+                    // "-2, + branch offset"
+                    // not entirely sure why they felt the -2 was necessary?
+                    // maybe it makes sense in inform syntax
+
+                    //println!( "self.ip:{}", self.ip );
+                    //println!( "read bytes:{}", op_code.read_bytes );
+                    //println!( "offset:{}", op_code.read_bytes );
+                    //println!( "branch_byte_offset:{}", branch_byte_offset);
+
+                    let difference = op_code.read_bytes + offset + branch_byte_offset - 2;
+                    //println!( "difference:{}", branch_byte_offset);
+                    self.ip = self.ip + difference;
+
                 } else {
-                    self.ip += op_code.read_bytes + 1;
+
+                    //println!("branch condition not met");
+
+                    let difference = op_code.read_bytes + branch_byte_offset;
+                    //println!("read_bytes:{}", op_code.read_bytes);
+                    //println!("branch_byte_offset:{}", branch_byte_offset);
+
+                    self.ip += difference;
+
                 }
 
             }
-            false => self.ip += op_code.read_bytes,
+            false => {
+                //println!("code does not branch");
+                self.ip += op_code.read_bytes;
+            }
         }
-
-
-        // self.running = false;
 
     }
 
-    //this JUST reads a variable, but does not modify the stack in any way
-    //its different from the opcode functions, which we may merge into zmachine,
-    //or may not
+    // this JUST reads a variable, but does not modify the stack in any way
+    // its different from the opcode functions, which we may merge into zmachine,
+    // or may not
     pub fn read_variable(&self, address: u8) -> u16 {
         match address {
             // 0, its the stack, pop it and return
-            0 => self.call_stack.stack[self.call_stack.stack.len() -1],
+            0 => self.call_stack.stack[self.call_stack.stack.len() - 1],
             // 1 to 15, its a local
             i @ 0x01...0x0f => self.call_stack.get_local_variable(i),
             // 16 to 255, it's a global variable.
-            global @ 0x10...0xff => self.
-                                      get_global_variables_view().
-                                      read_u16_at_head(global as u32),
+            global @ 0x10...0xff => {
+                self.get_global_variables_view()
+                    .read_u16_at_head(global as u32)
+            }
             _ => unreachable!(),
         }
     }
 
-    //this writes a variable in place - it really only specializes on the stack,
-    //otherwise it wraps store_variable
+    // this writes a variable in place - it really only specializes on the stack,
+    // otherwise it wraps store_variable
     pub fn write_variable_in_place(&mut self, address: u8, value: u16) {
         match address {
             0 => {
-                let last = self.call_stack.stack.len()-1;
+                let last = self.call_stack.stack.len() - 1;
                 self.call_stack.stack[last] = value;
             }
             _ => self.store_variable(address, value),
@@ -410,6 +447,4 @@ impl ZMachine {
             _ => unreachable!(),
         }
     }
-
-
 }
