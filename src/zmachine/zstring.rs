@@ -82,9 +82,12 @@ impl ZString {
         }
 
         let mut z_string = ZString {
+            //each byte has 3 z-chars, which corresponds to 3 chars (even with
+            //special chars, rust treats chars more like runes ).
+            
             bytes: Vec::with_capacity(bytes.len() * 3),
             string: String::with_capacity(bytes.len() * 3),
-            encoded_length: bytes.len() as u32,
+            encoded_length: (bytes.len() as u32) * 2,
         };
 
         for word in bytes {
