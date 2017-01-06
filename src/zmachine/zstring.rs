@@ -66,7 +66,7 @@ impl ZString {
         // implicit copy
         let mut pointer = offset;
 
-        //println!("pointer: {:x}", view.pointer + pointer);
+        // println!("pointer: {:x}", view.pointer + pointer);
 
         let mask: u16 = 0x8000;
 
@@ -82,9 +82,8 @@ impl ZString {
         }
 
         let mut z_string = ZString {
-            //each byte has 3 z-chars, which corresponds to 3 chars (even with
-            //special chars, rust treats chars more like runes ).
-            
+            // each byte has 3 z-chars, which corresponds to 3 chars (even with
+            // special chars, rust treats chars more like runes ).
             bytes: Vec::with_capacity(bytes.len() * 3),
             string: String::with_capacity(bytes.len() * 3),
             encoded_length: (bytes.len() as u32) * 2,
@@ -96,7 +95,7 @@ impl ZString {
             z_string.bytes.push((word as u8) & 0x1F);
         }
 
-        //println!("num of chars: {}", z_string.bytes.len());
+        // println!("num of chars: {}", z_string.bytes.len());
 
         // we always start out with A0
         // this can shift for one character only, so we have to keep track of it
@@ -221,7 +220,7 @@ impl ZString {
             (0x1D, &Alphabet::A1) => 'X',
             (0x1E, &Alphabet::A1) => 'Y',
             (0x1F, &Alphabet::A1) => 'Z',
-            (0x7, &Alphabet::A2) => '^',
+            (0x7, &Alphabet::A2) => '\n',
             (0x8, &Alphabet::A2) => '0',
             (0x9, &Alphabet::A2) => '1',
             (0xA, &Alphabet::A2) => '2',
@@ -261,7 +260,7 @@ impl ZString {
 
     pub fn find_abbreviation(i: u8, z: u8, view: &MemoryView) -> ZString {
 
-        
+
         let address_offset = (32 * (z - 1) + i) * 2;
         let packed_address = view.read_u16_at_head(address_offset as u32);
         let address = (packed_address as u32 * 2);
@@ -273,7 +272,7 @@ impl ZString {
         // note that technically abbreviations cant abbreviate, but
         // it would be fine if they did, anyway ( i'm certainly not preventing it,
         // and can't see any reason why it would fail )
-        
+
         ZString::create(0, &new_view, view)
 
     }
