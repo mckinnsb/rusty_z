@@ -48,7 +48,7 @@ impl ObjectView {
 
     pub fn get_properties_table_view(&self) -> ObjectPropertiesView {
 
-        //println!("starting: {}", self.view.pointer);
+        // println!("starting: {}", self.view.pointer);
         // first we start from the beginning of the object table
         let pointer_position = self.view.pointer +
                                //then offset by attribute length + all relatives length
@@ -58,9 +58,9 @@ impl ObjectView {
         // we should now be at the properties table address
         // object addresses are not packed and are in dynamic mem
 
-        //println!("reading: {}", pointer_position);
+        // println!("reading: {}", pointer_position);
         let pointer = self.view.read_u16_at(pointer_position) as u32;
-        //println!("read: {}", pointer);
+        // println!("read: {}", pointer);
 
         ObjectPropertiesView::create(pointer, &self.defaults_view, &self.view)
 
@@ -69,9 +69,9 @@ impl ObjectView {
     pub fn has_attribute(&self, attribute: u16) -> bool {
         // this will also have to change with the new version
         // v4 may have up to 48
-        //println!("attribute:{}", attribute);
-        //println!("first half:{}", self.view.read_u16_at(0));
-        //println!("second half:{}", self.view.read_u16_at(1));
+        // println!("attribute:{}", attribute);
+        // println!("first half:{}", self.view.read_u16_at(0));
+        // println!("second half:{}", self.view.read_u16_at(1));
 
         match attribute {
             i @ 0...15 => ObjectView::is_bit_set_in_u16(i as u8, self.view.read_u16_at(0)),

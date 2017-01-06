@@ -17,11 +17,11 @@ pub struct ObjectPropertyInfo {
 
 pub struct ObjectPropertiesView {
     // this will be an even # of bytes, but is just a byte
-    text_size: u8,
+    pub text_size: u8,
     // this is global, we will have to use global read functions
     // to easily read the defaults table from any one object property view
-    defaults_view: MemoryView,
-    view: MemoryView,
+    pub defaults_view: MemoryView,
+    pub view: MemoryView,
 }
 
 impl ObjectPropertiesView {
@@ -54,17 +54,22 @@ impl ObjectPropertiesView {
         }
     }
 
+    // gets the property address ( full address )
     pub fn get_property_addr(&self, property_index: u8) -> u32 {
-
         let info = self.get_property_info(property_index);
+        self.get_property_addr_from_info(info)
+    }
 
+    // gets the property address from an info object ( helpful if you already
+    // have the info around )
+    pub fn get_property_addr_from_info(&self, info: ObjectPropertyInfo) -> u32 {
         match info.addr {
             None => 0,
             Some(x) => x + self.view.pointer,
         }
-
     }
 
+    // gets the property info, which includes address, size, and id
     pub fn get_property_info(&self, property_index: u8) -> ObjectPropertyInfo {
 
         // we skip the text and the text size byte
@@ -88,8 +93,8 @@ impl ObjectPropertiesView {
 
             let found_info = ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
-            //println!("size: {}", found_info.size);
-            //println!("id: {}", found_info.id);
+            // println!("size: {}", found_info.size);
+            // println!("id: {}", found_info.id);
 
             if found_info.id == info.id {
                 info.size = found_info.size;
@@ -105,12 +110,14 @@ impl ObjectPropertiesView {
 
     }
 
+    // gets the property default for this property
     pub fn get_property_default(&self, property_index: u8) -> u16 {
         self.view.read_u16_at_head((property_index as u32 - 1) * 2)
     }
 
     // note that this is a little inefficient. but whatever
     // if this really ends up being a performance problem, we can come back to it
+    // this will return the default value if the property is not found
     pub fn get_property(&self, property_index: u8) -> ObjectProperty {
 
         let info = self.get_property_info(property_index);
@@ -136,6 +143,7 @@ impl ObjectPropertiesView {
 
     }
 
+    // gets property value by fetching the property and returning the value
     pub fn get_property_value(&self, property_index: u8) -> u16 {
 
         let property = self.get_property(property_index);

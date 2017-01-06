@@ -66,8 +66,8 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // push the current offset to the stack
     // note its highly unlikely the conversion will be a problem here;
     // offset is not likely to be greater than 100
-    //println!("pushing offset: {}", code.read_bytes);
-    
+    // println!("pushing offset: {}", code.read_bytes);
+
     machine.call_stack.stack.push(code.read_bytes as u16);
 
     // move program counter
@@ -150,58 +150,62 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn call_1s(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn clear_attr(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
 pub fn dec(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
+
+    let mut current = machine.read_variable(variable as u8) as i16;
+    current -= 1;
+
+    machine.write_variable_in_place(variable as u8, current as u16);
+
 }
 
-//dec check decrements a variable and branches if the variable is now
-//less than value
+// dec check decrements a variable and branches if the variable is now
+// less than value
 //
-//this is not a store function, it actually operates under different
-//rules in which the stack is not popped when read or written to
+// this is not a store function, it actually operates under different
+// rules in which the stack is not popped when read or written to
 
 pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.branch = true;
 
-    let (variable, value) = ( code.operands[0].get_value(),
-                              code.operands[1].get_value() );
+    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
 
-    println!( "variable: {}", variable );
-    let mut current = machine.read_variable(variable as u8);
+    let mut current = machine.read_variable(variable as u8) as i16;
     current -= 1;
 
-    machine.write_variable_in_place(variable as u8, current);
+    machine.write_variable_in_place(variable as u8, current as u16);
 
     match current < value {
         false => code.result = 0,
         true => code.result = 1,
     }
 
-    //done
+    // done
 
 }
 
-//signed division, should halt interpreter on divide by zero ( the inform
-//compiler should guarantee that never happens )
+// signed division, should halt interpreter on divide by zero ( the inform
+// compiler should guarantee that never happens )
 
 pub fn div(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
 
-    let (dividend, divisor) = (code.operands[0].get_value(),
-                               code.operands[1].get_value());
+    let (dividend, divisor) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     if divisor == 0 {
-        panic!( "division by zero!" );
+        panic!("division by zero!");
     }
 
-    code.result = ( dividend as i16 /
-                    divisor as i16 ) as u16;
+    code.result = (dividend as i16 / divisor as i16) as u16;
 
 }
 
@@ -259,22 +263,84 @@ pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
+// this gets the next property of the property listed,
+// if the property given is 0, it finds the first property of the object,
+// otherwise, it finds the next property,
+//
+// and in either case, returns the id of the next property
+//
+// if the property specified is non-existant, the interpreter should halt.
 pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
+
     unimplemented!();
+
+    code.store = true;
+
+    let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value() as u8);
+
+    let property_view = machine.get_object_view(object).get_properties_table_view();
+
+    let size_byte = match property {
+        0 => property_view.view.read_at_head(0),
+        _ => {
+
+            let info = property_view.get_property_info(property);
+
+            let addr = match info.addr {
+                Some(x) => x,
+                None => panic!("attempted to find the next property of a non existant property!"),
+            };
+
+            let next_addr = addr + info.size as u32;
+            property_view.view.read_at_head(next_addr)
+
+        }
+    };
+
+    let ObjectPropertyInfo { id, .. } =
+        ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
+
+    code.result = id as u16;
+
 }
+
 pub fn get_sibling(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
 pub fn inc(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
+
+    let mut current = machine.read_variable(variable as u8) as i16;
+    current += 1;
+
+    machine.write_variable_in_place(variable as u8, current as u16);
+
 }
+
 pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.branch = true;
+
+    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
+
+    let mut current = machine.read_variable(variable as u8) as i16;
+    current += 1;
+
+    machine.write_variable_in_place(variable as u8, current as u16);
+
+    match current > value {
+        false => code.result = 0,
+        true => code.result = 1,
+    }
+
 }
+
 pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
@@ -367,7 +433,7 @@ pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (start, index) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    let address = start + (index * 2);
+    let address = (start as u32) + (index as u32 * 2);
 
     code.result = machine.get_memory_view()
         .read_u16_at(address as u32);
@@ -375,10 +441,20 @@ pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn loadb(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.store = true;
+
+    let (array, byte_index) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    let address = (array as u32) + (byte_index as u32);
+
+    code.result = machine.get_memory_view()
+        .read_at(address) as u16;
+    // done
+
 }
 
-//signed multiplication
+// signed multiplication
 pub fn mul(code: &mut OpCode, machine: &mut ZMachine) {
     code.store = true;
     code.result = ((code.operands[0].get_value() as i16) *
@@ -386,7 +462,7 @@ pub fn mul(code: &mut OpCode, machine: &mut ZMachine) {
     // done
 }
 
-//signed modulo
+// signed modulo
 pub fn mod_fn(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
@@ -396,8 +472,9 @@ pub fn mod_fn(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn new_line(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    println!("");
 }
+
 pub fn nop(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
@@ -420,16 +497,14 @@ pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {
 
 pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
 
-    //println!("read bytes: {}", code.read_bytes);
-
     let view = machine.get_frame_view();
     let abbreviations_view = machine.get_abbreviations_view();
 
     let string = ZString::create(code.read_bytes, &view, &abbreviations_view);
 
-    println!("{}", string);
-
+    print!("{}", string);
     code.read_bytes += string.encoded_length;
+    // println!("read bytes: {}", code.read_bytes);
 
 }
 
@@ -445,9 +520,13 @@ pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    let num = (code.operands[0].get_value());
+    print!("{}", num as i16);
+
 }
+
 pub fn print_ret(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
@@ -457,9 +536,9 @@ pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
     let (object, property, value) =
         (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
 
-    //println!("object: {}", object);
-    //println!("property: {}", property);
-    //println!("value: {}", value);
+    // println!("object: {}", object);
+    // println!("property: {}", property);
+    // println!("value: {}", value);
 
     machine.get_object_view(object).
         get_properties_table_view().
@@ -506,7 +585,7 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
     code.read_bytes = offset as u32;
     code.store = true;
 
-    //println!("return offset is:{}", offset);
+    // println!("return offset is:{}", offset);
 
     // retrieve the lower and top parts of the address
     let address_uhalf = machine.call_stack.stack.pop();
@@ -517,7 +596,7 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
         _ => panic!("return call resulted in stack underflow!"),
     };
 
-    //println!("address is: {}", address);
+    // println!("address is: {}", address);
 
     // we don't do *2 on this version since we
     // stored the address in-system ( not as part of asm )
