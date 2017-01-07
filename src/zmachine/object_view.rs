@@ -92,8 +92,8 @@ impl ObjectView {
         // this will also have to change with the new version
         // v4 may have up to 48
         match attribute {
-            i @ 0...15 => ObjectView::is_bit_set_in_u16(i as u8, self.view.read_u16_at(0)),
-            i @ 16...31 => ObjectView::is_bit_set_in_u16((i as u8) - 16, self.view.read_u16_at(1)),
+            i @ 0...15 => ObjectView::is_bit_set_in_u16(i as u8, self.view.read_u16_at_head(0)),
+            i @ 16...31 => ObjectView::is_bit_set_in_u16((i as u8) - 16, self.view.read_u16_at_head(1)),
             _ => panic!("attempt to read an invalid attribute"),
         }
     }
@@ -138,6 +138,22 @@ impl ObjectView {
 
         self.view.write_u16_at_head( pointer_position, sibling_id );
         
+    }
+
+    pub fn set_attribute(&self, attribute: u16) {
+        // this will also have to change with the new version
+        // v4 may have up to 48
+        match attribute {
+            i @ 0...15 => {
+                let new_attr_mask = self.view.read_u16_at_head(0) & (i << 1);
+                self.view.write_u16_at_head(0, new_attr_mask);
+            }
+            i @ 16...31 => {
+                let new_attr_mask = self.view.read_u16_at_head(1) & ((i-16) << 1);
+                self.view.write_u16_at_head(1, new_attr_mask);
+            }
+            _ => panic!("attempt to write an invalid attribute"),
+        }
     }
 
 
