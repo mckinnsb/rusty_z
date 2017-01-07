@@ -225,7 +225,6 @@ impl ZMachine {
     // object id is a u16 because in future versions, there can be up
     // to 65k objects. id rather standardize that ahead of time because
     // it will be all over the instruction set
-
     pub fn get_object_view(&self, object_id: u16) -> ObjectView {
 
         // we will have to change the values for this in the future when we support
@@ -294,6 +293,7 @@ impl ZMachine {
         //println!("******************");
         //println!("");
         //println!("instruction at : {:x}", self.ip);
+        
         let mut op_code = OpCode::form_opcode(word);
 
         // we get a mutable reference to the call stack
@@ -343,6 +343,8 @@ impl ZMachine {
                 let true_mask = 0b10000000;
                 let branch_on_true = (view.read_at_head(op_code.read_bytes) & true_mask) != 0;
 
+                //println!("branching on true:{}", branch_on_true);
+
                 let two_bits_mask = 0b01000000;
                 let one_bit = (view.read_at_head(op_code.read_bytes) & two_bits_mask) != 0;
 
@@ -360,12 +362,22 @@ impl ZMachine {
 
                 if (branch) {
 
-                    //println!("branching");
-
                     let mut offset = match one_bit {
                         // we have to mask against the control bits, here
-                        true => (view.read_at_head(op_code.read_bytes) & 0b00111111) as u32,
-                        false => (view.read_u16_at_head(op_code.read_bytes) & 0b0011111111111111) as u32,
+                        true => (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16,
+                        false => {
+
+                            let fourteen_bit = view.read_u16_at_head(op_code.read_bytes) & 0b0011111111111111;
+
+                            if fourteen_bit & 0x0200 != 0 {
+                                //propagate the sign
+                                fourteen_bit & 1 << 15;
+                                fourteen_bit & 1 << 14;
+                            }
+
+                            fourteen_bit as i16
+
+                        }
                     };
 
                     // branch address is defined as "address after branch data",
@@ -374,18 +386,14 @@ impl ZMachine {
                     // not entirely sure why they felt the -2 was necessary?
                     // maybe it makes sense in inform syntax
 
-                    //println!( "self.ip:{}", self.ip );
-                    //println!( "read bytes:{}", op_code.read_bytes );
-                    //println!( "offset:{}", op_code.read_bytes );
-                    //println!( "branch_byte_offset:{}", branch_byte_offset);
+                    let difference = (op_code.read_bytes as i16) + 
+                                       offset + 
+                                       (branch_byte_offset as i16)
+                                       - 2;
 
-                    let difference = op_code.read_bytes + offset + branch_byte_offset - 2;
-                    //println!( "difference:{}", branch_byte_offset);
-                    self.ip = self.ip + difference;
+                    self.ip = ((self.ip as i32) + (difference as i32)) as u32;
 
                 } else {
-
-                    //println!("branch condition not met");
 
                     let difference = op_code.read_bytes + branch_byte_offset;
                     //println!("read_bytes:{}", op_code.read_bytes);
@@ -437,14 +445,20 @@ impl ZMachine {
     // the machine always stores variables during or at the end of instruction calls,
     // and accesses variables before processing the call;
     pub fn store_variable(&mut self, address: u8, value: u16) {
+
+        //println!( "storing: {} at {}", value, address );
+
         match address {
             0 => self.call_stack.stack.push(value),
-            index @ 0x01...0x0f => self.call_stack.store_local_variable(index - 1, value),
+            index @ 0x01...0x0f => self.
+                                     call_stack.
+                                     store_local_variable(index, value),
             index @ 0x10...0xff => {
                 self.get_global_variables_view()
                     .write_u16_at_head((index as u32 - 1) * 2, value)
             }
             _ => unreachable!(),
         }
+
     }
 }

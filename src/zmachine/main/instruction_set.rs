@@ -176,7 +176,8 @@ pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.branch = true;
 
-    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
+    let (variable, value) = (code.operands[0].get_value(), 
+                             code.operands[1].get_value() as i16);
 
     let mut current = machine.read_variable(variable as u8) as i16;
     current -= 1;
@@ -272,8 +273,6 @@ pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {
 // if the property specified is non-existant, the interpreter should halt.
 pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
-    unimplemented!();
-
     code.store = true;
 
     let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value() as u8);
@@ -323,12 +322,11 @@ pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.branch = true;
 
-    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
+    let (variable, value) = (code.operands[0].get_value(), 
+                             code.operands[1].get_value() as i16);
 
     let mut current = machine.read_variable(variable as u8) as i16;
-    current += 1;
-
-    machine.write_variable_in_place(variable as u8, current as u16);
+    machine.write_variable_in_place(variable as u8, (current + 1)as u16);
 
     match current > value {
         false => code.result = 0,
@@ -409,8 +407,26 @@ pub fn jl(code: &mut OpCode, machine: &mut ZMachine) {
 // this time it does absolutely nothing to the call stack
 pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {
 
-    let offset = code.operands[0].get_value() as u32;
-    machine.ip += offset + code.read_bytes;
+    //we have to be careful about this cast or we will lose the negative value
+    let offset = code.operands[0].get_value() as i16;
+    let offset = offset as i32;
+
+    //so because we know that machine.ip will always be lower than
+    //2 billion, we can safely convert it to i32 ( and it will still be positive )
+    //
+    //we have to do this because offset may be negative
+    //println!( "old code:{:x}", machine.ip );
+
+    let new_ip = machine.ip as i32 + (offset);
+    machine.ip = (new_ip as u32) + code.read_bytes - 2;
+
+    //println!( "code read bytes:{}", code.read_bytes );
+    //println!( "offset:{}", offset );
+    //println!( "jumping to:{:x}", machine.ip );
+    
+    //reset read bytes so machine does not advance the code
+    code.read_bytes = 0;
+    //done
 
 }
 
@@ -502,18 +518,37 @@ pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
 
     let string = ZString::create(code.read_bytes, &view, &abbreviations_view);
 
-    print!("{}", string);
     code.read_bytes += string.encoded_length;
+
+    print!("{}", string);
     // println!("read bytes: {}", code.read_bytes);
 
 }
 
 pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let addr = code.operands[0].get_value() as u32;
+    //let packed_addr = (addr as u32) * 2;
+
+    let view = machine.get_memory_view();
+    let abbreviations_view = machine.get_abbreviations_view();
+
+    let string = ZString::create(addr, &view, &abbreviations_view);
+
+    print!("{}", string);
+
 }
+
 pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    //let ch = (code.operands[0].get_value());
+    //let mut ch_str = String::with_capacity(1);
+    match ZString::decode_zscii(code.operands[0].get_value()) {
+        Some(x) => print!("{}", x ),
+        None => {}
+    }
+
 }
+
 pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }

@@ -97,6 +97,20 @@ impl ZString {
 
         // println!("num of chars: {}", z_string.bytes.len());
 
+        ZString::decode_into_string( &z_string.bytes, 
+                                     &mut z_string.string,
+                                     abbreviations_view );
+
+        z_string
+
+    }
+
+    //decodes the series of zhcars into destination;
+    //modifies destination, doesn't return anything
+    pub fn decode_into_string( zchars: &Vec<u8>, 
+                               destination: &mut String, 
+                               abbreviations_view: &MemoryView ) {
+
         // we always start out with A0
         // this can shift for one character only, so we have to keep track of it
         let mut alphabet = Alphabet::A0;
@@ -105,7 +119,7 @@ impl ZString {
         // this we also have to keep track of as its multi-char (but is an abbreviation)
         let mut printing_abbreviation = Abbreviation::None;
 
-        for ch in z_string.bytes.iter() {
+        for ch in zchars.iter() {
 
             // copy the byte, its fine. i don't care. ill probably end up doing it anyway.
             //
@@ -126,9 +140,16 @@ impl ZString {
                 //if partially building bigchar, this char is lower half of bigchar,
                 //and finish building the big char
                 (lower, _, &BigChar::Partial { upper }, _) => {
+
                     let big_char = ((upper as u16) << 5 & 0b0000001111100000) |
                                    ((lower as u16) & 0b0000000000011111);
-                    z_string.string.push(ZString::decode_big_char(big_char));
+
+                    match ZString::decode_zscii(big_char) {
+                        Some(x) => destination.push(x),
+                        //literally, do nothing
+                        _ => {}
+                    }
+
                     printing_big_char = BigChar::None;
                     alphabet = Alphabet::A0;
                 }
@@ -142,7 +163,7 @@ impl ZString {
                 (i, _, _, &Abbreviation::Partial { z }) => {
                     let string = format!("{}",
                                          ZString::find_abbreviation(i, z, abbreviations_view));
-                    z_string.string.push_str(&string);
+                    destination.push_str(&string);
                     printing_abbreviation = Abbreviation::None;
                     //im not sure if you are supposed to do anything w/alphabet here
                     alphabet = Alphabet::A0;
@@ -154,18 +175,20 @@ impl ZString {
 
                 //the default case, actually print the string
                 (x, _, _, _) => {
-                    z_string.string.push(ZString::decode_char(x, &alphabet));
+                    destination.push(ZString::decode_char(x, &alphabet));
                     alphabet = Alphabet::A0;
                 }
             }
 
         }
 
-        z_string
-
     }
 
     // chars are runes in rust, sortof, kind of
+    // in version 5 and up, this table can change based on the header,
+    // and we will have to deal with that
+    //
+    // ( i think its mostly for translation purposes )
     pub fn decode_char(ch: u8, alphabet: &Alphabet) -> char {
         match (ch, alphabet) {
             (0x6, &Alphabet::A0) => 'a',
@@ -251,11 +274,95 @@ impl ZString {
     }
 
     // these are all unicode characters...
-    // not sure if i want to do this yet....
     //
-    // its a lot of entries.. a WHOLLLLE lot
-    pub fn decode_big_char(ch: u16) -> char {
-        '?'
+    // so, there are a lot of unused entries;
+    // 1-7, 10, 12, 14-16, 28-31, 127-128, and 255-1023
+    //
+    // there is a way to specify a different alphabet table, but that doesn't
+    // effect the ZSCII table, so there's also a potential that they wanted
+    // a "universal" and "local" table but never got around to fully using
+    // the universal one - or they just had the space to create this many
+    // addresses and never got around to using them all.
+    //
+    // the real benefit is the non-latin characters, of course
+    
+    pub fn decode_zscii(ch: u16) -> Option<char> {
+        match ch {
+            //ascii
+            0 => None,
+            13 => Some('\n'),
+            c @ 32...126 => Some((c as u8) as char),
+            155 => Some('ä'),
+            156 => Some('ö'),
+            157 => Some('ü'),
+            158 => Some('Ä'),
+            159 => Some('Ö'),
+            160 => Some('Ü'),
+            161 => Some('ß'),
+            162 => Some('»'),
+            163 => Some('«'),
+            164 => Some('ë'),
+            165 => Some('ï'),
+            166 => Some('ÿ'),
+            167 => Some('Ë'),
+            168 => Some('Ï'),
+            169 => Some('á'),
+            170 => Some('é'),
+            171 => Some('í'),
+            172 => Some('ó'),
+            173 => Some('ú'),
+            174 => Some('ý'),
+            175 => Some('Á'),
+            176 => Some('É'),
+            177 => Some('Í'),
+            178 => Some('Ó'),
+            179 => Some('Ú'),
+            180 => Some('Ý'),
+            181 => Some('à'),
+            182 => Some('è'),
+            183 => Some('ì'),
+            184 => Some('ò'),
+            185 => Some('ù'),
+            186 => Some('À'),
+            187 => Some('È'),
+            188 => Some('Ì'),
+            189 => Some('Ò'),
+            190 => Some('Ù'),
+            191 => Some('â'),
+            192 => Some('ê'),
+            193 => Some('î'),
+            194 => Some('ô'),
+            195 => Some('û'),
+            196 => Some('Â'),
+            197 => Some('Ê'),
+            198 => Some('Î'),
+            199 => Some('Ô'),
+            200 => Some('Û'),
+            201 => Some('å'),
+            202 => Some('Å'),
+            203 => Some('ø'),
+            204 => Some('Ø'),
+            205 => Some('ã'),
+            206 => Some('ñ'),
+            207 => Some('õ'),
+            208 => Some('Ã'),
+            209 => Some('Ñ'),
+            210 => Some('Õ'),
+            211 => Some('æ'),
+            212 => Some('Æ'),
+            213 => Some('ç'),
+            214 => Some('Ç'),
+            215 => Some('þ'),
+            216 => Some('ð'),
+            217 => Some('Þ'),
+            218 => Some('Ð'),
+            219 => Some('£'),
+            220 => Some('œ'),
+            221 => Some('Œ'),
+            222 => Some('¡'),
+            223 => Some('¿'),
+            x @ _ => None
+        }
     }
 
     pub fn find_abbreviation(i: u8, z: u8, view: &MemoryView) -> ZString {
