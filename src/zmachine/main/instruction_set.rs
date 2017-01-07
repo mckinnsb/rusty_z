@@ -357,8 +357,8 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
     let (child, parent) = ( code.operands[0].get_value(),
                             code.operands[1].get_value() );
 
-    println!( "child: {}, parent: {}", child, parent );
-    println!( "address: {:x}, op_code:{}", machine.ip, code );
+    //println!( "child: {}, parent: {}", child, parent );
+    //println!( "address: {:x}, op_code:{}", machine.ip, code );
 
     if child != 0 {
         let child_view = machine.
@@ -551,9 +551,11 @@ pub fn or(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
@@ -599,8 +601,27 @@ pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let packed_addr = code.operands[0].get_value();
+
+    //another thing that we will have to change in the future,
+    //packed addresses vary based on version..
+    //
+    //also gotta be careful with these casts - they are packed for 
+    //a reason ( they are 16bit representations of 32 bit word locations )
+    
+    let full_addr = (packed_addr as u32)*2; 
+
+    println!( "printing whatever is at: {}", full_addr );
+
+    let view = machine.get_memory_view();
+    let abbreviations_view = machine.get_abbreviations_view();
+    let string = ZString::create(full_addr, &view, &abbreviations_view);
+
+    print!("{}", string);
+
 }
 
 pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {
@@ -609,8 +630,15 @@ pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
+//there are a lot of "macro commands" in the z-instruction set,
+//probably to save on common tasks, such as this one,
+//frequently used when you succeed in doing something
+//(print success message, new line, and return true)
 pub fn print_ret(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    println!("printing and returning");
+    print(code, machine);
+    new_line(code, machine);
+    rtrue(code, machine);
 }
 
 pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
