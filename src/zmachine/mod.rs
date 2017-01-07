@@ -1,3 +1,4 @@
+mod global_variables_view;
 mod header;
 mod memory_view;
 mod object_view;

@@ -54,14 +54,12 @@ pub struct MemoryView {
 impl MemoryView {
     // i could return a usize here, but that means more
     // unnecessary casting
-
     fn program_offset(&self, offset: u32) -> u32 {
         (self.pointer + (offset))
     }
 
     // this peeks at the top of the stack and copies the first two bytes
     // into an array, and returns
-
     pub fn peek_at_instruction(&self) -> [u8; 2] {
         let x = [self.read_at_head(0), self.read_at_head(1)];
         x
@@ -85,6 +83,14 @@ impl MemoryView {
         self.read_u16_at(self.pointer + offset)
     }
 
+    //in the future, i would actually like to make this "mut self"
+    //
+    //while no property of the memory view itself is changing ( the pointer or Rc<RefCell<Vec>> ),
+    //the Vec is. i know that im sort of getting away with a shared reference through the pointer
+    //and specifically this access method, but it might be better to communicate that on a higher
+    //level through the view anyway, even if no property of the view is property changed,
+    //forcing mut to access mut might be a good pattern
+    
     pub fn write_at(&self, address: u32, value: u8) {
         let mut memory = self.memory.borrow_mut();
         memory[address as usize] = value;

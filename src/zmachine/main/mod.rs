@@ -5,6 +5,7 @@ pub mod instruction_set;
 use super::header::*;
 use self::opcode::*;
 use super::memory_view::*;
+use super::global_variables_view::*;
 use super::object_view::*;
 
 use std::rc::*;
@@ -206,19 +207,21 @@ impl ZMachine {
         }
     }
 
-    pub fn get_global_variables_view(&self) -> MemoryView {
-        MemoryView {
-            memory: self.memory.clone(),
+    pub fn get_global_variables_view(&self) -> GlobalVariablesView {
+        GlobalVariablesView {
+            view: MemoryView {
+                memory: self.memory.clone(),
 
-            //this will be accurate for the lifetime of the program
-            //we cast here; it wont be of any consequence because
-            //while the memory/pointer is represented by s u32,
-            //the global variables are in the lower half of memory
-            //represented by a u16
-            //
-            //( basically, the addresses are all two byte words but are multiplied
-            //by 2 to access "high memory", or non dynamic memory" )
-            pointer: self.header.global_vars_table_location as u32,
+                //this will be accurate for the lifetime of the program
+                //we cast here; it wont be of any consequence because
+                //while the memory/pointer is represented by s u32,
+                //the global variables are in the lower half of memory
+                //represented by a u16
+                //
+                //( basically, the addresses are all two byte words but are multiplied
+                //by 2 to access "high memory", or non dynamic memory" )
+                pointer: self.header.global_vars_table_location as u32,
+            }
         }
     }
 
@@ -241,6 +244,7 @@ impl ZMachine {
             self.header.object_table_location as u32 + property_defaults_length as u32 + offset;
 
         ObjectView {
+            object_id: object_id,
             attributes_length: 4,
             defaults_view: MemoryView {
                 memory: self.memory.clone(),
@@ -423,8 +427,9 @@ impl ZMachine {
             i @ 0x01...0x0f => self.call_stack.get_local_variable(i),
             // 16 to 255, it's a global variable.
             global @ 0x10...0xff => {
+                let index = global - 0x10;
                 self.get_global_variables_view()
-                    .read_u16_at_head(global as u32)
+                    .read_global(index as u16)
             }
             _ => unreachable!(),
         }
@@ -453,9 +458,11 @@ impl ZMachine {
             index @ 0x01...0x0f => self.
                                      call_stack.
                                      store_local_variable(index, value),
-            index @ 0x10...0xff => {
+            global @ 0x10...0xff => {
+                //offset by 16 to get the global "index"
+                let index = global - 0x10;
                 self.get_global_variables_view()
-                    .write_u16_at_head((index as u32 - 1) * 2, value)
+                    .write_global(index as u16, value);
             }
             _ => unreachable!(),
         }

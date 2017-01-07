@@ -4,6 +4,7 @@ use std::fmt;
 use super::instruction_set;
 use super::super::memory_view::*;
 use super::super::object_view::*;
+use super::super::global_variables_view::*;
 use super::ZMachine;
 use super::Stack;
 
@@ -488,7 +489,7 @@ impl OpCode {
 
     pub fn read_variables(&mut self,
                           frame_view: MemoryView,
-                          globals: MemoryView,
+                          globals: GlobalVariablesView,
                           call_stack: &mut Stack) {
 
         if self.operand_count == 0 {
@@ -522,7 +523,11 @@ impl OpCode {
                         // 1 to 15, its a local
                         i @ 0x01...0x0f => *value = call_stack.get_local_variable(i),
                         // 16 to 255, it's a global variable.
-                        global @ 0x10...0xff => *value = globals.read_u16_at_head(global as u32),
+                        global @ 0x10...0xff => {
+                            //offset by 16 to get the global "index"
+                            let index = global - 0x10;
+                            *value = globals.read_global(index as u16)
+                        }
                         _ => unreachable!(),
                     }
 

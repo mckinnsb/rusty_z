@@ -339,8 +339,55 @@ pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
+//this code moves object to the first child of destination -
+//basically what this does is it sets "child" of destination to this object,
+//and whatever "child" was previously then becomes the "sibling" of this object,
+//
+//it should be noted we don't change the "parent" status of the previous object - 
+//that remains ( all children of a parent have "parent" listed, it's just that
+//they only refer to their next sibling )
+//
+//it also should be noted this is used in weird ways;
+//you can do insert_obj 0, 1 to basically remove everything from a
+//bag, and insert_obj 1, 0 to basically remove an object from a bag
+//its more or less up to the author to decide what they want to use
+
 pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let (child, parent) = ( code.operands[0].get_value(),
+                            code.operands[1].get_value() );
+
+    println!( "child: {}, parent: {}", child, parent );
+    println!( "address: {:x}, op_code:{}", machine.ip, code );
+
+    if child != 0 {
+        let child_view = machine.
+                           get_object_view(child);
+
+        //in the case of 0, this deparents
+        child_view.set_parent(parent);
+    }
+
+    if parent != 0 {
+        let parent_view = machine.
+                            get_object_view(parent);
+
+        //in the case of 0, this empties
+        parent_view.set_child(child);
+    }
+
+    if parent != 0 && child != 0 {
+        //we could make this more efficient, but it would get kind of ugly
+        let child_view = machine.
+                           get_object_view(child);
+
+        let parent_view = machine.
+                            get_object_view(parent);
+
+        //since both are not zero, we are actually inserting
+        child_view.set_sibling(parent_view.get_child());
+    }
+
 }
 
 

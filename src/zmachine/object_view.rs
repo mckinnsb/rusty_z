@@ -14,6 +14,7 @@ use super::object_properties_view::*;
 const properties_length: u32 = 2;
 
 pub struct ObjectView {
+    pub object_id: u16, 
     // how long are the attributes in bytes?
     pub attributes_length: u32,
     // this is the property defaults view - mostly
@@ -34,33 +35,54 @@ impl ObjectView {
     pub fn get_child(&self) -> u16 {
 
         // first we start from the beginning of the object table
-        let pointer_position = self.view.pointer +
-                               //then offset by attribute length + all relatives length
-                               self.attributes_length +
+        //then offset by attribute length + all relatives length
+        let pointer_position = self.attributes_length +
                                //the order is parent, sibling, child
                                self.related_obj_length * 2;
 
-        let child_id = self.view.read_u16_at(pointer_position);
+        let child_id = self.view.read_u16_at_head(pointer_position);
 
         child_id
 
     }
 
+    pub fn get_parent(&self) -> u16 {
+
+        // first we start from the beginning of the object table
+        //then offset by attribute length + all relatives length
+        let pointer_position = self.attributes_length;
+        let parent_id = self.view.read_u16_at_head(pointer_position);
+
+        parent_id
+
+    }
+
+    pub fn get_sibling(&self) -> u16 {
+
+        // first we start from the beginning of the object table
+        //then offset by attribute length + all relatives length
+        let pointer_position = self.attributes_length +
+                               //the order is parent, sibling, child
+                               self.related_obj_length;
+
+        let sibling_id = self.view.read_u16_at_head(pointer_position);
+
+        sibling_id
+
+    }
+    
+
     pub fn get_properties_table_view(&self) -> ObjectPropertiesView {
 
         // println!("starting: {}", self.view.pointer);
         // first we start from the beginning of the object table
-        let pointer_position = self.view.pointer +
-                               //then offset by attribute length + all relatives length
-                               self.attributes_length +
+        // then offset by attribute length + all relatives length
+        let pointer_position = self.attributes_length +
                                self.related_obj_length * 3;
 
         // we should now be at the properties table address
         // object addresses are not packed and are in dynamic mem
-
-        // println!("reading: {}", pointer_position);
-        let pointer = self.view.read_u16_at(pointer_position) as u32;
-        // println!("read: {}", pointer);
+        let pointer = self.view.read_u16_at_head(pointer_position) as u32;
 
         ObjectPropertiesView::create(pointer, &self.defaults_view, &self.view)
 
@@ -69,10 +91,6 @@ impl ObjectView {
     pub fn has_attribute(&self, attribute: u16) -> bool {
         // this will also have to change with the new version
         // v4 may have up to 48
-        // println!("attribute:{}", attribute);
-        // println!("first half:{}", self.view.read_u16_at(0));
-        // println!("second half:{}", self.view.read_u16_at(1));
-
         match attribute {
             i @ 0...15 => ObjectView::is_bit_set_in_u16(i as u8, self.view.read_u16_at(0)),
             i @ 16...31 => ObjectView::is_bit_set_in_u16((i as u8) - 16, self.view.read_u16_at(1)),
@@ -87,4 +105,40 @@ impl ObjectView {
     pub fn is_bit_set_in_u16(num: u8, word: u16) -> bool {
         num << 1 & word as u8 != 0
     }
+
+    pub fn set_child( &self, child_id: u16 ) {
+        // first we start from the beginning of the object table
+        //then offset by attribute length + all relatives length
+        let pointer_position = self.attributes_length +
+                               //the order is parent, sibling, child
+                               self.related_obj_length * 2;
+
+        self.view.write_u16_at_head( pointer_position, child_id );
+        
+    }
+
+    pub fn set_parent( &self, parent_id: u16 ) {
+        // first we start from the beginning of the object table
+        //then offset by attribute length + all relatives length
+        let pointer_position = self.attributes_length;
+                               //the order is parent, sibling, child
+                               //so parent has no relative offset after attributes
+
+        self.view.write_u16_at_head( pointer_position, parent_id );
+        
+    }
+
+    pub fn set_sibling( &self, sibling_id: u16 ) {
+        // first we start from the beginning of the object table
+        //then offset by attribute length + all relatives length
+        let pointer_position = self.attributes_length +
+                               //the order is parent, sibling, child
+                               self.related_obj_length;
+                               //so parent has no relative offset after attributes
+
+        self.view.write_u16_at_head( pointer_position, sibling_id );
+        
+    }
+
+
 }
