@@ -631,12 +631,29 @@ pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
+//weirdly enough, this is not a store call
+//i have no idea if its legal to pull and push
+//back onto the stack, but i don't see why not
 pub fn pull(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let destination = code.operands[0].get_value();
+    let value = machine.call_stack.stack.pop();
+
+    let value = match value {
+        Some(x) => x,
+        None => panic!( "stack underflow!" ),
+    };
+
+    machine.store_variable(destination as u8, value);
+    //done
+    
 }
+
 pub fn push(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    let value = code.operands[0].get_value();
+    machine.call_stack.stack.push(value);
 }
+
 pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
