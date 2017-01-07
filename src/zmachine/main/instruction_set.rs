@@ -479,7 +479,7 @@ pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {
 
 pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {
     code.branch = true;
-    code.result = (code.operands[0].get_value() == 1) as u16;
+    code.result = (code.operands[0].get_value() == 0) as u16;
 }
 
 pub fn load(code: &mut OpCode, machine: &mut ZMachine) {
