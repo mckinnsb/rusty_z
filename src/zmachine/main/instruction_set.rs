@@ -650,16 +650,38 @@ pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
+//pop the stack and return that value,
+//similar to rtrue except we modify the stack
+//the next three fucntions are all 0-op,
+//so we don't have to worry too much about modifying operands
+//to use ret ( 1-OP )
 pub fn ret_popped(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
-}
-pub fn rfalse(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    let value = match machine.call_stack.stack.pop() {
+        Some(x) => x,
+        None => panic!( "stack underflow!" ),
+    };
+
+    code.operands[0] = Operand::LargeConstant{ value: value };
+    ret(code, machine);
 }
 
-pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+//return the value false
+pub fn rfalse(code: &mut OpCode, machine: &mut ZMachine) {
+    //similar to rtrue
+    code.operands[0] = Operand::SmallConstant { value: 0 };
+    ret(code, machine);
 }
+
+//return the value true
+pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {
+    //so here we do some fudging, because we want to re-use ret
+    //the alternative is to create an abstraction that "handled" returning, but
+    //that seems like almost everything that ret does
+    code.operands[0] = Operand::SmallConstant { value: 1 };
+    ret(code, machine);
+}
+
 pub fn save(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
