@@ -75,7 +75,14 @@ impl MemoryView {
     }
 
     pub fn read_u16_at(&self, address: u32) -> u16 {
-        let result = (self.read_at(address) as u16) << 8 | self.read_at(address + 1) as u16;
+        let upper_half = (self.read_at(address) as u16) << 8;
+        let lower_half = self.read_at(address + 1) as u16;
+        let result = upper_half | lower_half;
+
+        //println!( "upper_half: {}", upper_half );
+        //println!( "lower_half: {}", lower_half );
+        //println!( "result: {}", result );
+
         result
     }
 
@@ -83,14 +90,14 @@ impl MemoryView {
         self.read_u16_at(self.pointer + offset)
     }
 
-    //in the future, i would actually like to make this "mut self"
+    // in the future, i would actually like to make this "mut self"
     //
-    //while no property of the memory view itself is changing ( the pointer or Rc<RefCell<Vec>> ),
-    //the Vec is. i know that im sort of getting away with a shared reference through the pointer
-    //and specifically this access method, but it might be better to communicate that on a higher
-    //level through the view anyway, even if no property of the view is property changed,
-    //forcing mut to access mut might be a good pattern
-    
+    // while no property of the memory view itself is changing ( the pointer or Rc<RefCell<Vec>> ),
+    // the Vec is. i know that im sort of getting away with a shared reference through the pointer
+    // and specifically this access method, but it might be better to communicate that on a higher
+    // level through the view anyway, even if no property of the view is property changed,
+    // forcing mut to access mut might be a good pattern
+
     pub fn write_at(&self, address: u32, value: u8) {
         let mut memory = self.memory.borrow_mut();
         memory[address as usize] = value;
@@ -103,6 +110,10 @@ impl MemoryView {
     pub fn write_u16_at(&self, address: u32, value: u16) {
         let upper_half = (value >> 8 & 0xFF) as u8;
         let lower_half = (value & 0xFF) as u8;
+
+        //println!( "writing:{}" , value );
+        //println!( "upper:{}" , upper_half );
+        //println!( "lower:{}" , lower_half );
 
         self.write_at(address, upper_half);
         self.write_at(address + 1, lower_half);

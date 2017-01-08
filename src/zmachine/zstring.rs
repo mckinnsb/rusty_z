@@ -97,19 +97,17 @@ impl ZString {
 
         // println!("num of chars: {}", z_string.bytes.len());
 
-        ZString::decode_into_string( &z_string.bytes, 
-                                     &mut z_string.string,
-                                     abbreviations_view );
+        ZString::decode_into_string(&z_string.bytes, &mut z_string.string, abbreviations_view);
 
         z_string
 
     }
 
-    //decodes the series of zhcars into destination;
-    //modifies destination, doesn't return anything
-    pub fn decode_into_string( zchars: &Vec<u8>, 
-                               destination: &mut String, 
-                               abbreviations_view: &MemoryView ) {
+    // decodes the series of zhcars into destination;
+    // modifies destination, doesn't return anything
+    pub fn decode_into_string(zchars: &Vec<u8>,
+                              destination: &mut String,
+                              abbreviations_view: &MemoryView) {
 
         // we always start out with A0
         // this can shift for one character only, so we have to keep track of it
@@ -285,10 +283,10 @@ impl ZString {
     // addresses and never got around to using them all.
     //
     // the real benefit is the non-latin characters, of course
-    
+
     pub fn decode_zscii(ch: u16) -> Option<char> {
         match ch {
-            //ascii
+            // ascii
             0 => None,
             13 => Some('\n'),
             c @ 32...126 => Some((c as u8) as char),
@@ -361,7 +359,7 @@ impl ZString {
             221 => Some('Œ'),
             222 => Some('¡'),
             223 => Some('¿'),
-            x @ _ => None
+            x @ _ => None,
         }
     }
 

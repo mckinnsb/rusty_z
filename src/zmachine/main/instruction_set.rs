@@ -71,17 +71,11 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     machine.call_stack.stack.push(code.read_bytes as u16);
 
     // move program counter
-    let mut address = match code.operands[0] {
-        Operand::SmallConstant { value } => value as u16,
-        Operand::LargeConstant { value } |
-        Operand::Variable { value } => value,
-        Operand::Omitted { .. } => panic!("you must supply an argument to call, even if 0"),
-    };
+    let mut address = code.operands[0].get_value();
 
     // address is actually multiplied by a constant, depending on the version #
     // we just support 3 here, so it is always 2
-
-    machine.ip = address as u32 * 2;
+    machine.ip = (address as u32) * 2;
 
     // set the new call stack
     machine.call_stack.switch_to_new_frame();
@@ -151,13 +145,17 @@ pub fn call_1s(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
+// this clears a bit in the attributes table
 pub fn clear_attr(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    let (object, attr) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    machine.get_object_view(object).unset_attribute(attr);
+    // done
 }
 
 pub fn dec(code: &mut OpCode, machine: &mut ZMachine) {
 
-    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
+    let variable = code.operands[0].get_value();
 
     let mut current = machine.read_variable(variable as u8) as i16;
     current -= 1;
@@ -176,8 +174,7 @@ pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.branch = true;
 
-    let (variable, value) = (code.operands[0].get_value(), 
-                             code.operands[1].get_value() as i16);
+    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
 
     let mut current = machine.read_variable(variable as u8) as i16;
     current -= 1;
@@ -193,6 +190,14 @@ pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
+
+// although not officially documented, this code exists, and was probably
+// used for debugging. interpreters are allowed to:
+// 1) ignore it
+// 2) use it for debugging
+//
+// it's not a "no-op", strictly speaking, but for our purposes it is.
+pub fn debug(code: &mut OpCode, machine: &mut ZMachine) {}
 // signed division, should halt interpreter on divide by zero ( the inform
 // compiler should guarantee that never happens )
 
@@ -210,19 +215,27 @@ pub fn div(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
+// gets the child id of the object
 pub fn get_child(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
     code.branch = true;
 
     let object = code.operands[0].get_value();
-
     code.result = machine.get_object_view(object).get_child();
+    // done
 
 }
 
+// gets the parent id of the object
 pub fn get_parent(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.store = true;
+
+    let object = code.operands[0].get_value();
+    code.result = machine.get_object_view(object).get_parent();
+    // done
+
 }
 
 pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
@@ -231,10 +244,13 @@ pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    code.result = machine.get_object_view(object)
+    let value = machine.get_object_view(object)
         .get_properties_table_view()
         .get_property(property as u8)
         .value;
+
+    //println!("object:{}\nproperty:{}\nvalue:{}", object, property, value);
+    code.result = value;
 
 }
 
@@ -299,6 +315,8 @@ pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
     let ObjectPropertyInfo { id, .. } =
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
+    //println!("object:{}\nproperty:{}\nid:{}", object, property, id);
+
     code.result = id as u16;
 
 }
@@ -309,7 +327,7 @@ pub fn get_sibling(code: &mut OpCode, machine: &mut ZMachine) {
 
 pub fn inc(code: &mut OpCode, machine: &mut ZMachine) {
 
-    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
+    let variable = code.operands[0].get_value();
 
     let mut current = machine.read_variable(variable as u8) as i16;
     current += 1;
@@ -322,11 +340,10 @@ pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.branch = true;
 
-    let (variable, value) = (code.operands[0].get_value(), 
-                             code.operands[1].get_value() as i16);
+    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
 
     let mut current = machine.read_variable(variable as u8) as i16;
-    machine.write_variable_in_place(variable as u8, (current + 1)as u16);
+    machine.write_variable_in_place(variable as u8, (current + 1) as u16);
 
     match current > value {
         false => code.result = 0,
@@ -339,53 +356,48 @@ pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
-//this code moves object to the first child of destination -
-//basically what this does is it sets "child" of destination to this object,
-//and whatever "child" was previously then becomes the "sibling" of this object,
+// this code moves object to the first child of destination -
+// basically what this does is it sets "child" of destination to this object,
+// and whatever "child" was previously then becomes the "sibling" of this object,
 //
-//it should be noted we don't change the "parent" status of the previous object - 
-//that remains ( all children of a parent have "parent" listed, it's just that
-//they only refer to their next sibling )
+// it should be noted we don't change the "parent" status of the previous object -
+// that remains ( all children of a parent have "parent" listed, it's just that
+// they only refer to their next sibling )
 //
-//it also should be noted this is used in weird ways;
-//you can do insert_obj 0, 1 to basically remove everything from a
-//bag, and insert_obj 1, 0 to basically remove an object from a bag
-//its more or less up to the author to decide what they want to use
+// it also should be noted this is used in weird ways;
+// you can do insert_obj 0, 1 to basically remove everything from a
+// bag, and insert_obj 1, 0 to basically remove an object from a bag
+// its more or less up to the author to decide what they want to use
 
 pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
 
-    let (child, parent) = ( code.operands[0].get_value(),
-                            code.operands[1].get_value() );
+    let (child, parent) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    //println!( "child: {}, parent: {}", child, parent );
-    //println!( "address: {:x}, op_code:{}", machine.ip, code );
+    // println!( "child: {}, parent: {}", child, parent );
+    // println!( "address: {:x}, op_code:{}", machine.ip, code );
 
     if child != 0 {
-        let child_view = machine.
-                           get_object_view(child);
+        let child_view = machine.get_object_view(child);
 
-        //in the case of 0, this deparents
+        // in the case of 0, this deparents
         child_view.set_parent(parent);
     }
 
     if parent != 0 {
-        let parent_view = machine.
-                            get_object_view(parent);
 
-        //in the case of 0, this empties
+        let parent_view = machine.get_object_view(parent);
+
+        let old_child = parent_view.get_child();
+
+        // in the case of 0, this empties
         parent_view.set_child(child);
-    }
 
-    if parent != 0 && child != 0 {
-        //we could make this more efficient, but it would get kind of ugly
-        let child_view = machine.
-                           get_object_view(child);
+        if child != 0 {
+            // we could make this more efficient, but it would get kind of ugly
+            let child_view = machine.get_object_view(child);
 
-        let parent_view = machine.
-                            get_object_view(parent);
-
-        //since both are not zero, we are actually inserting
-        child_view.set_sibling(parent_view.get_child());
+            child_view.set_sibling(old_child);
+        }
     }
 
 }
@@ -430,15 +442,26 @@ pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 // this function jumps if the object is a child of the other object,
+//
+// it seems like this function can also take 0 as an argument to parent,
+// to ask the question "does the child have no parent?"
+//
+// i'm hoping that you cannot also ask, "what is the parent of nothing",
+// since that question would make no sense, unless the answer was also
+// "nothing", but that would just be like a jump( since its an unconditional
+// branch
+
 pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.branch = true;
 
-    let (child, parent) = (code.operands[0].get_value(),
-                           machine.get_object_view(code.operands[1].get_value()));
+    let (child, parent) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    // this will convert to 1
-    code.result = (parent.get_child() == child) as u16;
+    let view = machine.get_object_view(child);
+    let found_parent = view.get_parent();
+
+    code.result = (view.get_parent() == parent) as u16;
+
     // done!
 
 }
@@ -454,26 +477,26 @@ pub fn jl(code: &mut OpCode, machine: &mut ZMachine) {
 // this time it does absolutely nothing to the call stack
 pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {
 
-    //we have to be careful about this cast or we will lose the negative value
+    // we have to be careful about this cast or we will lose the negative value
     let offset = code.operands[0].get_value() as i16;
     let offset = offset as i32;
 
-    //so because we know that machine.ip will always be lower than
-    //2 billion, we can safely convert it to i32 ( and it will still be positive )
+    // so because we know that machine.ip will always be lower than
+    // 2 billion, we can safely convert it to i32 ( and it will still be positive )
     //
-    //we have to do this because offset may be negative
-    //println!( "old code:{:x}", machine.ip );
+    // we have to do this because offset may be negative
+    // println!( "old code:{:x}", machine.ip );
 
     let new_ip = machine.ip as i32 + (offset);
     machine.ip = (new_ip as u32) + code.read_bytes - 2;
 
-    //println!( "code read bytes:{}", code.read_bytes );
-    //println!( "offset:{}", offset );
-    //println!( "jumping to:{:x}", machine.ip );
-    
-    //reset read bytes so machine does not advance the code
+    // println!( "code read bytes:{}", code.read_bytes );
+    // println!( "offset:{}", offset );
+    // println!( "jumping to:{:x}", machine.ip );
+
+    // reset read bytes so machine does not advance the code
     code.read_bytes = 0;
-    //done
+    // done
 
 }
 
@@ -577,7 +600,7 @@ pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {
 
     let addr = code.operands[0].get_value() as u32;
-    //let packed_addr = (addr as u32) * 2;
+    // let packed_addr = (addr as u32) * 2;
 
     let view = machine.get_memory_view();
     let abbreviations_view = machine.get_abbreviations_view();
@@ -589,10 +612,10 @@ pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {
-    //let ch = (code.operands[0].get_value());
-    //let mut ch_str = String::with_capacity(1);
+    // let ch = (code.operands[0].get_value());
+    // let mut ch_str = String::with_capacity(1);
     match ZString::decode_zscii(code.operands[0].get_value()) {
-        Some(x) => print!("{}", x ),
+        Some(x) => print!("{}", x),
         None => {}
     }
 
@@ -606,15 +629,15 @@ pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
 
     let packed_addr = code.operands[0].get_value();
 
-    //another thing that we will have to change in the future,
-    //packed addresses vary based on version..
+    // another thing that we will have to change in the future,
+    // packed addresses vary based on version..
     //
-    //also gotta be careful with these casts - they are packed for 
-    //a reason ( they are 16bit representations of 32 bit word locations )
-    
-    let full_addr = (packed_addr as u32)*2; 
+    // also gotta be careful with these casts - they are packed for
+    // a reason ( they are 16bit representations of 32 bit word locations )
 
-    println!( "printing whatever is at: {}", full_addr );
+    let full_addr = (packed_addr as u32) * 2;
+
+    //println!("printing whatever is at: {}", full_addr);
 
     let view = machine.get_memory_view();
     let abbreviations_view = machine.get_abbreviations_view();
@@ -630,12 +653,12 @@ pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
-//there are a lot of "macro commands" in the z-instruction set,
-//probably to save on common tasks, such as this one,
-//frequently used when you succeed in doing something
-//(print success message, new line, and return true)
+// there are a lot of "macro commands" in the z-instruction set,
+// probably to save on common tasks, such as this one,
+// frequently used when you succeed in doing something
+// print success message, new line, and return true)
 pub fn print_ret(code: &mut OpCode, machine: &mut ZMachine) {
-    println!("printing and returning");
+   // println!("printing and returning");
     print(code, machine);
     new_line(code, machine);
     rtrue(code, machine);
@@ -659,9 +682,9 @@ pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
-//weirdly enough, this is not a store call
-//i have no idea if its legal to pull and push
-//back onto the stack, but i don't see why not
+// weirdly enough, this is not a store call
+// i have no idea if its legal to pull and push
+// back onto the stack, but i don't see why not
 pub fn pull(code: &mut OpCode, machine: &mut ZMachine) {
 
     let destination = code.operands[0].get_value();
@@ -669,12 +692,12 @@ pub fn pull(code: &mut OpCode, machine: &mut ZMachine) {
 
     let value = match value {
         Some(x) => x,
-        None => panic!( "stack underflow!" ),
+        None => panic!("stack underflow!"),
     };
 
     machine.store_variable(destination as u8, value);
-    //done
-    
+    // done
+
 }
 
 pub fn push(code: &mut OpCode, machine: &mut ZMachine) {
@@ -743,33 +766,33 @@ pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
-//pop the stack and return that value,
-//similar to rtrue except we modify the stack
-//the next three fucntions are all 0-op,
-//so we don't have to worry too much about modifying operands
-//to use ret ( 1-OP )
+// pop the stack and return that value,
+// similar to rtrue except we modify the stack
+// the next three fucntions are all 0-op,
+// so we don't have to worry too much about modifying operands
+// to use ret ( 1-OP )
 pub fn ret_popped(code: &mut OpCode, machine: &mut ZMachine) {
     let value = match machine.call_stack.stack.pop() {
         Some(x) => x,
-        None => panic!( "stack underflow!" ),
+        None => panic!("stack underflow!"),
     };
 
-    code.operands[0] = Operand::LargeConstant{ value: value };
+    code.operands[0] = Operand::LargeConstant { value: value };
     ret(code, machine);
 }
 
-//return the value false
+// return the value false
 pub fn rfalse(code: &mut OpCode, machine: &mut ZMachine) {
-    //similar to rtrue
+    // similar to rtrue
     code.operands[0] = Operand::SmallConstant { value: 0 };
     ret(code, machine);
 }
 
-//return the value true
+// return the value true
 pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {
-    //so here we do some fudging, because we want to re-use ret
-    //the alternative is to create an abstraction that "handled" returning, but
-    //that seems like almost everything that ret does
+    // so here we do some fudging, because we want to re-use ret
+    // the alternative is to create an abstraction that "handled" returning, but
+    // that seems like almost everything that ret does
     code.operands[0] = Operand::SmallConstant { value: 1 };
     ret(code, machine);
 }
@@ -777,9 +800,17 @@ pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn save(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
+// this sets a bit in the attributes table
 pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let (object, attr) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    machine.get_object_view(object).set_attribute(attr);
+
+    // done
 }
+
 pub fn set_window(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }

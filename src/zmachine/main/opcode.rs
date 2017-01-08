@@ -95,6 +95,9 @@ impl Operand {
 }
 
 pub struct OpCode {
+    // the pointer to the code, not used directly but
+    // very helpful for debugging
+    pub ip: u32,
     // the actual opcode, this is determined
     pub code: u8,
 
@@ -173,6 +176,8 @@ impl OpCode {
         // at all
         let instruction = match (&code.form, code.operand_count, code.code) {
             // 2 op - long
+            (&OpForm::Long, _, 0x0) |
+            (&OpForm::LongAsVariable, _, 0x0) => instruction_set::debug,
             (&OpForm::Long, _, 0x1) |
             (&OpForm::LongAsVariable, _, 0x1) => instruction_set::je,
             (&OpForm::Long, _, 0x2) |
@@ -270,7 +275,7 @@ impl OpCode {
             (&OpForm::Variable, _, 0x14) => instruction_set::input_stream,
             (&OpForm::Variable, _, 0x15) => instruction_set::sound_effect,
             // end
-            _ => panic!("Instruction not found!"),
+            err @ _ => panic!("Instruction not found!: {},{},{}", err.0, err.1, err.2),
         };
 
         code.instruction = instruction;
@@ -295,6 +300,7 @@ impl OpCode {
         // like filling out the operands table
 
         let mut op_code: OpCode = OpCode {
+            ip: 0,
             code: 0,
             branch: false,
             store: false,
@@ -524,7 +530,7 @@ impl OpCode {
                         i @ 0x01...0x0f => *value = call_stack.get_local_variable(i),
                         // 16 to 255, it's a global variable.
                         global @ 0x10...0xff => {
-                            //offset by 16 to get the global "index"
+                            // offset by 16 to get the global "index"
                             let index = global - 0x10;
                             *value = globals.read_global(index as u16)
                         }
@@ -545,7 +551,8 @@ impl OpCode {
 impl fmt::Display for OpCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f,
-               "form: {}\n opcode: {}\n operands:\n{}\n operand_count: {}\n",
+               "ip:{:x}\n form: {}\n opcode: {}\n operands:\n{}\n operand_count: {}\n",
+               self.ip,
                self.form,
                self.code,
                format!("0: {},\n1: {},\n2: {},\n3: {}\n",

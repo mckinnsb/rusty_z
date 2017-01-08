@@ -24,7 +24,7 @@ pub struct Stack {
 }
 
 impl Stack {
-    // strictly speaking, can only be 1..16
+    // strictly speaking, can only be 1..15 ( 14 total )
     // gotta be careful here because you would normally think you would have
     // to offset by index because of where top_of_frame is, but as it turns
     // out, starting out with "1" prevents that
@@ -221,7 +221,7 @@ impl ZMachine {
                 //( basically, the addresses are all two byte words but are multiplied
                 //by 2 to access "high memory", or non dynamic memory" )
                 pointer: self.header.global_vars_table_location as u32,
-            }
+            },
         }
     }
 
@@ -239,7 +239,10 @@ impl ZMachine {
         let property_defaults_length = 62;
 
         // calculate offset and object location
+        // println!( "object id: {}", object_id );
+
         let offset = ((object_id as u32 - 1) * object_length);
+
         let object_location =
             self.header.object_table_location as u32 + property_defaults_length as u32 + offset;
 
@@ -277,8 +280,6 @@ impl ZMachine {
 
     pub fn next_instruction(&mut self) {
 
-        // println!("next instruction! pointer: {:x}", self.ip);
-
         // a non-mutable memory view,
         // reads from the same memory as zmachine
         let view = self.get_frame_view();
@@ -293,12 +294,14 @@ impl ZMachine {
         // println!("raw word: {:x}", word[0]);
         // println!("raw word: {:x}", word[1]);
 
-        //println!("******************");
-        //println!("******************");
-        //println!("");
-        //println!("instruction at : {:x}", self.ip);
-        
+        // println!("******************");
+        // println!("******************");
+        // println!("");
+        // println!("instruction at : {:x}", self.ip);
+
         let mut op_code = OpCode::form_opcode(word);
+        // mostly for debuggin purposes
+        op_code.ip = self.ip;
 
         // we get a mutable reference to the call stack
         // because variables can augment them
@@ -309,7 +312,7 @@ impl ZMachine {
             let stack = &mut self.call_stack;
             // have the view.
             op_code.read_variables(view, globals, stack);
-            //println!("{}", op_code);
+            // println!("{}", op_code);
         }
 
         op_code.execute(self);
@@ -339,7 +342,7 @@ impl ZMachine {
         match op_code.branch {
             true => {
 
-                //println!("code may branch");
+                // println!("code may branch");
                 let view = self.get_frame_view();
 
                 let condition = op_code.result;
@@ -347,7 +350,7 @@ impl ZMachine {
                 let true_mask = 0b10000000;
                 let branch_on_true = (view.read_at_head(op_code.read_bytes) & true_mask) != 0;
 
-                //println!("branching on true:{}", branch_on_true);
+                // println!("branching on true:{}", branch_on_true);
 
                 let two_bits_mask = 0b01000000;
                 let one_bit = (view.read_at_head(op_code.read_bytes) & two_bits_mask) != 0;
@@ -371,10 +374,11 @@ impl ZMachine {
                         true => (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16,
                         false => {
 
-                            let fourteen_bit = view.read_u16_at_head(op_code.read_bytes) & 0b0011111111111111;
+                            let fourteen_bit = view.read_u16_at_head(op_code.read_bytes) &
+                                               0b0011111111111111;
 
                             if fourteen_bit & 0x0200 != 0 {
-                                //propagate the sign
+                                // propagate the sign
                                 fourteen_bit & 1 << 15;
                                 fourteen_bit & 1 << 14;
                             }
@@ -390,18 +394,16 @@ impl ZMachine {
                     // not entirely sure why they felt the -2 was necessary?
                     // maybe it makes sense in inform syntax
 
-                    let difference = (op_code.read_bytes as i16) + 
-                                       offset + 
-                                       (branch_byte_offset as i16)
-                                       - 2;
+                    let difference =
+                        (op_code.read_bytes as i16) + offset + (branch_byte_offset as i16) - 2;
 
                     self.ip = ((self.ip as i32) + (difference as i32)) as u32;
 
                 } else {
 
                     let difference = op_code.read_bytes + branch_byte_offset;
-                    //println!("read_bytes:{}", op_code.read_bytes);
-                    //println!("branch_byte_offset:{}", branch_byte_offset);
+                    // println!("read_bytes:{}", op_code.read_bytes);
+                    // println!("branch_byte_offset:{}", branch_byte_offset);
 
                     self.ip += difference;
 
@@ -409,7 +411,7 @@ impl ZMachine {
 
             }
             false => {
-                //println!("code does not branch");
+                // println!("code does not branch");
                 self.ip += op_code.read_bytes;
             }
         }
@@ -451,15 +453,16 @@ impl ZMachine {
     // and accesses variables before processing the call;
     pub fn store_variable(&mut self, address: u8, value: u16) {
 
-        //println!( "storing: {} at {}", value, address );
+        // println!( "storing: {} at {}", value, address );
 
         match address {
             0 => self.call_stack.stack.push(value),
-            index @ 0x01...0x0f => self.
-                                     call_stack.
-                                     store_local_variable(index, value),
+            index @ 0x01...0x0f => {
+                self.call_stack
+                    .store_local_variable(index, value)
+            }
             global @ 0x10...0xff => {
-                //offset by 16 to get the global "index"
+                // offset by 16 to get the global "index"
                 let index = global - 0x10;
                 self.get_global_variables_view()
                     .write_global(index as u16, value);

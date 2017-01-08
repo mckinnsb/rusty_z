@@ -40,20 +40,19 @@ impl ObjectView {
                                //the order is parent, sibling, child
                                self.related_obj_length * 2;
 
-        let child_id = self.view.read_u16_at_head(pointer_position);
-
-        child_id
+        let child_id = self.view.read_at_head(pointer_position);
+        child_id as u16
 
     }
 
     pub fn get_parent(&self) -> u16 {
 
         // first we start from the beginning of the object table
-        //then offset by attribute length + all relatives length
+        // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length;
-        let parent_id = self.view.read_u16_at_head(pointer_position);
+        let parent_id = self.view.read_at_head(pointer_position);
 
-        parent_id
+        parent_id as u16
 
     }
 
@@ -65,9 +64,8 @@ impl ObjectView {
                                //the order is parent, sibling, child
                                self.related_obj_length;
 
-        let sibling_id = self.view.read_u16_at_head(pointer_position);
-
-        sibling_id
+        let sibling_id = self.view.read_at_head(pointer_position);
+        sibling_id as u16
 
     }
 
@@ -83,7 +81,10 @@ impl ObjectView {
         // object addresses are not packed and are in dynamic mem
         let pointer = self.view.read_u16_at_head(pointer_position) as u32;
 
-        ObjectPropertiesView::create(pointer, &self.defaults_view, &self.view)
+        ObjectPropertiesView::create(self.object_id, 
+                                     pointer, 
+                                     &self.defaults_view, 
+                                     &self.view)
 
     }
 
@@ -112,7 +113,7 @@ impl ObjectView {
                                //the order is parent, sibling, child
                                self.related_obj_length * 2;
 
-        self.view.write_u16_at_head( pointer_position, child_id );
+        self.view.write_at_head( pointer_position, child_id as u8 );
         
     }
 
@@ -123,7 +124,7 @@ impl ObjectView {
                                //the order is parent, sibling, child
                                //so parent has no relative offset after attributes
 
-        self.view.write_u16_at_head( pointer_position, parent_id );
+        self.view.write_at_head( pointer_position, parent_id as u8 );
         
     }
 
@@ -135,7 +136,7 @@ impl ObjectView {
                                self.related_obj_length;
                                //so parent has no relative offset after attributes
 
-        self.view.write_u16_at_head( pointer_position, sibling_id );
+        self.view.write_at_head( pointer_position, sibling_id as u8 );
         
     }
 
@@ -151,7 +152,7 @@ impl ObjectView {
                 let new_attr_mask = self.view.read_u16_at_head(1) | ((i-16) << 1);
                 self.view.write_u16_at_head(1, new_attr_mask);
             }
-            _ => panic!("attempt to write an invalid attribute"),
+            err @ _ => panic!("attempt to write an invalid attribute:{}",err),
         }
     }
 
@@ -167,7 +168,7 @@ impl ObjectView {
                 let new_attr_mask = self.view.read_u16_at_head(1) & !((i-16) << 1);
                 self.view.write_u16_at_head(1, new_attr_mask);
             }
-            _ => panic!("attempt to write an invalid attribute"),
+            err @ _ => panic!("attempt to write an invalid attribute:{}",err),
         }
     }
 
