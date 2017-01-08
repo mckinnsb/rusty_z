@@ -70,7 +70,6 @@ impl ObjectView {
         sibling_id
 
     }
-    
 
     pub fn get_properties_table_view(&self) -> ObjectPropertiesView {
 
@@ -145,11 +144,27 @@ impl ObjectView {
         // v4 may have up to 48
         match attribute {
             i @ 0...15 => {
-                let new_attr_mask = self.view.read_u16_at_head(0) & (i << 1);
+                let new_attr_mask = self.view.read_u16_at_head(0) | (i << 1);
                 self.view.write_u16_at_head(0, new_attr_mask);
             }
             i @ 16...31 => {
-                let new_attr_mask = self.view.read_u16_at_head(1) & ((i-16) << 1);
+                let new_attr_mask = self.view.read_u16_at_head(1) | ((i-16) << 1);
+                self.view.write_u16_at_head(1, new_attr_mask);
+            }
+            _ => panic!("attempt to write an invalid attribute"),
+        }
+    }
+
+    pub fn unset_attribute(&self, attribute: u16) {
+        // this will also have to change with the new version
+        // v4 may have up to 48
+        match attribute {
+            i @ 0...15 => {
+                let new_attr_mask = self.view.read_u16_at_head(0) & !(i << 1);
+                self.view.write_u16_at_head(0, new_attr_mask);
+            }
+            i @ 16...31 => {
+                let new_attr_mask = self.view.read_u16_at_head(1) & !((i-16) << 1);
                 self.view.write_u16_at_head(1, new_attr_mask);
             }
             _ => panic!("attempt to write an invalid attribute"),
