@@ -84,7 +84,7 @@ impl ObjectPropertiesView {
             size: 0,
         };
 
-        //println!("object_id: {}", self.object_id);
+        // println!("object_id: {}", self.object_id);
 
         // could use a while, but thats sort of not using destructuring
         loop {
@@ -98,8 +98,8 @@ impl ObjectPropertiesView {
 
             let found_info = ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
-            //println!("size: {}", found_info.size);
-            //println!("id: {}", found_info.id);
+            // println!("size: {}", found_info.size);
+            // println!("id: {}", found_info.id);
 
             if found_info.id == info.id {
                 info.size = found_info.size;
@@ -126,16 +126,6 @@ impl ObjectPropertiesView {
     pub fn get_property(&self, property_index: u8) -> ObjectProperty {
 
         let info = self.get_property_info(property_index);
-
-        /*
-        println!("addr:{}\nsize:{}\nid:{}",
-                 match info.addr {
-                     Some(x) => x,
-                     None => 0,
-                 },
-                 info.size,
-                 info.id);
-                 */
 
         let value = match info.addr {
             None => self.get_property_default(property_index),

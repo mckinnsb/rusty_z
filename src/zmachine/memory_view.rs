@@ -79,9 +79,17 @@ impl MemoryView {
         let lower_half = self.read_at(address + 1) as u16;
         let result = upper_half | lower_half;
 
-        //println!( "upper_half: {}", upper_half );
-        //println!( "lower_half: {}", lower_half );
-        //println!( "result: {}", result );
+        // println!( "upper_half: {}", upper_half );
+        // println!( "lower_half: {}", lower_half );
+        // println!( "result: {}", result );
+
+        result
+    }
+
+    pub fn read_u32_at(&self, address: u32) -> u32 {
+        let upper_half = (self.read_u16_at(address) as u32) << 16;
+        let lower_half = self.read_u16_at(address + 2) as u32;
+        let result = upper_half | lower_half;
 
         result
     }
@@ -89,6 +97,11 @@ impl MemoryView {
     pub fn read_u16_at_head(&self, offset: u32) -> u16 {
         self.read_u16_at(self.pointer + offset)
     }
+
+    pub fn read_u32_at_head(&self, offset: u32) -> u32 {
+        self.read_u32_at(self.pointer + offset)
+    }
+
 
     // in the future, i would actually like to make this "mut self"
     //
@@ -111,9 +124,9 @@ impl MemoryView {
         let upper_half = (value >> 8 & 0xFF) as u8;
         let lower_half = (value & 0xFF) as u8;
 
-        //println!( "writing:{}" , value );
-        //println!( "upper:{}" , upper_half );
-        //println!( "lower:{}" , lower_half );
+        // println!( "writing:{}" , value );
+        // println!( "upper:{}" , upper_half );
+        // println!( "lower:{}" , lower_half );
 
         self.write_at(address, upper_half);
         self.write_at(address + 1, lower_half);

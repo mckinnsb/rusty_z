@@ -3,7 +3,10 @@ extern crate webplatform;
 
 extern crate rusty_z;
 
+use std::io::*;
 use rusty_z::zmachine::main::ZMachine;
+use rusty_z::zmachine::main::MachineState;
+use rusty_z::zmachine::main::input_handler::*;
 
 // use std::fs::File;
 // use std::io::Read;
@@ -11,26 +14,6 @@ use rusty_z::zmachine::main::ZMachine;
 fn main() {
 
     // try to load the data
-
-    // this is the old way that only really works on desktop
-    //
-    // let mut file = match File::open("data.z3") {
-    // Ok(f) => f,
-    // Err(_) => panic!("Could not find data file!"),
-    // };
-    //
-    // create a mutable buffer/vector for the file
-    // let mut data_buffer: Vec<u8> = Vec::new();
-    //
-    // read the file to the end, if this is successful ( we match on Ok ),
-    // data_buffer will be filled with the contents of file
-    //
-    // let file_size = match file.read_to_end(&mut data_buffer) {
-    // Ok(size) => size,
-    // Err(_) => panic!("Could not read file into buffer! (file probably cannot be read)"),
-    // };
-    //
-    //
 
     // this is a static reference, we need a vec
     // we use the include_bytes! macro because it is cross-compatible
@@ -49,7 +32,6 @@ fn main() {
     // we then copy it as a vector using std::slice
     let data_buffer = data_ref.to_vec();
 
-
     println!("file read was {} bytes long", file_size);
 
     if data_buffer.len() <= 0 {
@@ -63,18 +45,33 @@ fn main() {
     // we could also maybe hide this my starting a coroutine or something,
     // but we would just be wrapping a mutable reference somewhere
 
+    let mut handler = input_handler();
     let mut machine = ZMachine::new(data_buffer);
     let status = machine.header.get_status();
 
     display(&status);
 
     // this might really need to change
-    while machine.running {
-        machine.next_instruction();
+    loop {
+        let state = machine.state.clone();
+        match state {
+            MachineState::Running => machine.next_instruction(),
+            MachineState::Stopped => break,
+            MachineState::TakingInput{ ref callback } => {
+                machine.wait_for_input(&mut handler, callback.clone())
+            }
+        };
     }
+
+    println!("zmachine exited");
 
 }
 
+fn input_handler() -> InputHandler<std::io::Stdin> {
+    let reader = std::io::stdin();
+
+    InputHandler { reader: reader }
+}
 
 #[cfg(target_os="emscripten")]
 fn display(text: &str) {

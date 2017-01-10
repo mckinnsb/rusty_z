@@ -1,15 +1,18 @@
 pub mod opcode;
 pub mod instruction_set;
+pub mod input_handler;
 
 // represents the current zmachine
 use super::header::*;
 use self::opcode::*;
+use self::input_handler::*;
 use super::memory_view::*;
 use super::global_variables_view::*;
 use super::object_view::*;
 
-use std::rc::*;
 use std::cell::RefCell;
+use std::io::*;
+use std::rc::*;
 
 // wraps a Vec with some other information
 pub struct Stack {
@@ -79,6 +82,14 @@ impl Stack {
     }
 }
 
+#[derive(Clone)]
+pub enum MachineState {
+    Stopped,
+    Running,
+    //input finished takes ownership of the string
+    TakingInput { callback: Rc<Fn(String)> },
+}
+
 pub struct ZMachine {
     // the call stack, which are 2-byte words (u16)
     //
@@ -126,7 +137,7 @@ pub struct ZMachine {
     ip: u32,
 
     // are we still running? keep processing.
-    pub running: bool,
+    pub state: MachineState,
 }
 
 impl ZMachine {
@@ -175,7 +186,7 @@ impl ZMachine {
             header: header,
             ip: pc_start,
             memory: memory,
-            running: true,
+            state: MachineState::Running,
         }
 
     }
@@ -194,6 +205,14 @@ impl ZMachine {
             pointer: self.header.abbreviations_location as u32,
         }
     }
+
+    pub fn get_dictionary_view(&self) -> MemoryView {
+        MemoryView {
+            memory: self.memory.clone(),
+            pointer: self.header.dictionary_location as u32,
+        }
+    }
+
     // gets a view into the current program
     // stack
     pub fn get_frame_view(&self) -> MemoryView {
@@ -225,6 +244,14 @@ impl ZMachine {
         }
     }
 
+    // the memory view for the whole env
+    pub fn get_memory_view(&self) -> MemoryView {
+        MemoryView {
+            memory: self.memory.clone(),
+            // the start of memory
+            pointer: 0,
+        }
+    }
     // object id is a u16 because in future versions, there can be up
     // to 65k objects. id rather standardize that ahead of time because
     // it will be all over the instruction set
@@ -269,14 +296,6 @@ impl ZMachine {
 
     }
 
-    // the memory view for the whole env
-    pub fn get_memory_view(&self) -> MemoryView {
-        MemoryView {
-            memory: self.memory.clone(),
-            // the start of memory
-            pointer: 0,
-        }
-    }
 
     pub fn next_instruction(&mut self) {
 
@@ -291,17 +310,10 @@ impl ZMachine {
         // note that not all instructions use the top two bytes
 
         let word = view.peek_at_instruction();
-        // println!("raw word: {:x}", word[0]);
-        // println!("raw word: {:x}", word[1]);
-
-        // println!("******************");
-        // println!("******************");
-        // println!("");
-        // println!("instruction at : {:x}", self.ip);
-
         let mut op_code = OpCode::form_opcode(word);
-        // mostly for debuggin purposes
         op_code.ip = self.ip;
+
+        //println!("ip: {:x}", op_code.ip);
 
         // we get a mutable reference to the call stack
         // because variables can augment them
@@ -314,6 +326,12 @@ impl ZMachine {
             op_code.read_variables(view, globals, stack);
             // println!("{}", op_code);
         }
+
+        self.execute_instruction(&mut op_code);
+
+    }
+
+    fn execute_instruction(&mut self, op_code: &mut OpCode) {
 
         op_code.execute(self);
 
@@ -341,83 +359,102 @@ impl ZMachine {
 
         match op_code.branch {
             true => {
-
-                // println!("code may branch");
-                let view = self.get_frame_view();
-
-                let condition = op_code.result;
-
-                let true_mask = 0b10000000;
-                let branch_on_true = (view.read_at_head(op_code.read_bytes) & true_mask) != 0;
-
-                // println!("branching on true:{}", branch_on_true);
-
-                let two_bits_mask = 0b01000000;
-                let one_bit = (view.read_at_head(op_code.read_bytes) & two_bits_mask) != 0;
-
-                // we branch when the value is non-zero;
-                // this is helpful for get child and other branches which
-                // also return values
-
-                let branch = (branch_on_true && condition > 0) ||
-                             (!branch_on_true && condition == 0);
-
-                let branch_byte_offset = match one_bit {
-                    true => 1,
-                    false => 2,
-                };
-
-                if (branch) {
-
-                    let mut offset = match one_bit {
-                        // we have to mask against the control bits, here
-                        true => (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16,
-                        false => {
-
-                            let fourteen_bit = view.read_u16_at_head(op_code.read_bytes) &
-                                               0b0011111111111111;
-
-                            if fourteen_bit & 0x0200 != 0 {
-                                // propagate the sign
-                                fourteen_bit & 1 << 15;
-                                fourteen_bit & 1 << 14;
-                            }
-
-                            fourteen_bit as i16
-
-                        }
-                    };
-
-                    // branch address is defined as "address after branch data",
-                    // or self.ip + op_code.read_bytes + offset
-                    // "-2, + branch offset"
-                    // not entirely sure why they felt the -2 was necessary?
-                    // maybe it makes sense in inform syntax
-
-                    let difference =
-                        (op_code.read_bytes as i16) + offset + (branch_byte_offset as i16) - 2;
-
-                    self.ip = ((self.ip as i32) + (difference as i32)) as u32;
-
-                } else {
-
-                    let difference = op_code.read_bytes + branch_byte_offset;
-                    // println!("read_bytes:{}", op_code.read_bytes);
-                    // println!("branch_byte_offset:{}", branch_byte_offset);
-
-                    self.ip += difference;
-
-                }
-
+                self.handle_branch(op_code);
             }
             false => {
                 // println!("code does not branch");
                 self.ip += op_code.read_bytes;
             }
         }
-
     }
 
+    // handle a branch opcode - this happens after instructions are executed
+    pub fn handle_branch(&mut self, op_code: &mut OpCode) {
+
+        let view = self.get_frame_view();
+        let condition = op_code.result;
+        let true_mask = 0b10000000;
+        let branch_on_true = (view.read_at_head(op_code.read_bytes) & true_mask) != 0;
+
+        let two_bits_mask = 0b01000000;
+        let one_bit = (view.read_at_head(op_code.read_bytes) & two_bits_mask) != 0;
+
+        // we branch when the value is non-zero;
+        // this is helpful for get child and other branches which
+        // also return values
+        let branch = (branch_on_true && condition > 0) || (!branch_on_true && condition == 0);
+
+        // branch byte offset
+        let branch_byte_offset = match one_bit {
+            true => 1,
+            false => 2,
+        };
+
+        if (branch) {
+
+            let offset = match one_bit {
+                // we have to mask against the control bits, here
+                true => (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16,
+                false => {
+
+                    let fourteen_bit = view.read_u16_at_head(op_code.read_bytes) &
+                                       0b0011111111111111;
+
+                    if fourteen_bit & 0x0200 != 0 {
+                        // propagate the sign
+                        fourteen_bit & 1 << 15;
+                        fourteen_bit & 1 << 14;
+                    }
+
+                    fourteen_bit as i16
+
+                }
+            };
+
+
+            match offset {
+
+                // in the case of 1 or 0, we return true or false from the function,
+                // which is actually "in" the instruction set,
+                // so this part is a little messy;
+                //
+                // we could move "return" up to the zmachine, and away from call/ret,
+                // but for now we will just get it done - its high time for zork
+                //
+                // this works because return does not actually let zmachine
+                // increment the code, so by calling it here, it modifies the ip for
+                // us and at the end, we should be in the right spot
+                0 => {
+                    let mut rtrue = OpCode::form_rtrue();
+                    self.execute_instruction(&mut rtrue);
+                }
+
+                1 => {
+                    let mut rfalse = OpCode::form_rfalse();
+                    self.execute_instruction(&mut rfalse);
+                }
+
+                // branch address is defined as "address after branch data",
+                // or self.ip + op_code.read_bytes + offset
+                // "-2, + branch offset"
+                // not entirely sure why they felt the -2 was necessary?
+                // maybe it makes sense in inform syntax
+                _ => {
+                    let difference =
+                        (op_code.read_bytes as i16) + offset + (branch_byte_offset as i16) - 2;
+
+                    self.ip = ((self.ip as i32) + (difference as i32)) as u32;
+                }
+
+            }
+
+        } else {
+
+            let difference = op_code.read_bytes + branch_byte_offset;
+            self.ip += difference;
+
+        }
+    }
     // this JUST reads a variable, but does not modify the stack in any way
     // its different from the opcode functions, which we may merge into zmachine,
     // or may not
@@ -435,6 +472,22 @@ impl ZMachine {
             }
             _ => unreachable!(),
         }
+    }
+
+    // wait for input, and on input, hand it to whatever code/op was waiting
+    // for it
+    pub fn wait_for_input<T: LineReader>(&mut self, 
+                                         handler: &mut InputHandler<T>,
+                                         callback: Rc<Fn(String)> ) {
+
+        let result = match handler.get_input() {
+            Some(str) => {
+                callback(str);
+                true
+            }
+            _ => false,
+        };
+
     }
 
     // this writes a variable in place - it really only specializes on the stack,

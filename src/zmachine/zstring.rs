@@ -271,6 +271,10 @@ impl ZString {
         }
     }
 
+    pub fn encode_word( word: &str ) -> String {
+        unimplemented!();
+    }
+
     // these are all unicode characters...
     //
     // so, there are a lot of unused entries;

@@ -2,7 +2,16 @@ use super::super::object_properties_view::*;
 use super::super::zstring::*;
 use super::opcode::*;
 use super::ZMachine;
+use super::MachineState;
 use super::Stack;
+
+use std::cmp;
+
+//for input flushing
+use std::io;
+use std::io::Write;
+
+use std::rc::*;
 
 // short functions
 
@@ -249,7 +258,7 @@ pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
         .get_property(property as u8)
         .value;
 
-    //println!("object:{}\nproperty:{}\nvalue:{}", object, property, value);
+    // println!("object:{}\nproperty:{}\nvalue:{}", object, property, value);
     code.result = value;
 
 }
@@ -273,6 +282,9 @@ pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {
     code.store = true;
 
     let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    // println!( "object: {}", object );
+    // println!( "property: {}", property );
 
     code.result = machine.get_object_view(object)
         .get_properties_table_view()
@@ -315,7 +327,7 @@ pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
     let ObjectPropertyInfo { id, .. } =
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
-    //println!("object:{}\nproperty:{}\nid:{}", object, property, id);
+    // println!("object:{}\nproperty:{}\nid:{}", object, property, id);
 
     code.result = id as u16;
 
@@ -429,6 +441,9 @@ pub fn je(code: &mut OpCode, machine: &mut ZMachine) {
         }
     }
 
+    // println!( "je is branching:{}", condition );
+    // println!( "{}",code );
+
     code.result = condition;
 
 }
@@ -501,8 +516,11 @@ pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {
+
     code.branch = true;
     code.result = (code.operands[0].get_value() == 0) as u16;
+    // println!( "result of jz:{}", code.result );
+
 }
 
 pub fn load(code: &mut OpCode, machine: &mut ZMachine) {
@@ -622,7 +640,14 @@ pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let object = code.operands[0].get_value();
+    let view = machine.get_object_view(object).get_properties_table_view();
+
+    // the string is offset by one because properties starts with the size byte,
+    // then is followed by the short name of the object
+    let string = ZString::create(1, &view.view, &machine.get_abbreviations_view());
+
 }
 
 pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
@@ -637,7 +662,7 @@ pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
 
     let full_addr = (packed_addr as u32) * 2;
 
-    //println!("printing whatever is at: {}", full_addr);
+    // println!("printing whatever is at: {:x}", full_addr);
 
     let view = machine.get_memory_view();
     let abbreviations_view = machine.get_abbreviations_view();
@@ -658,7 +683,7 @@ pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {
 // frequently used when you succeed in doing something
 // print success message, new line, and return true)
 pub fn print_ret(code: &mut OpCode, machine: &mut ZMachine) {
-   // println!("printing and returning");
+    // println!("printing and returning");
     print(code, machine);
     new_line(code, machine);
     rtrue(code, machine);
@@ -709,6 +734,17 @@ pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
+
+pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
+    unimplemented!();
+}
+
 // ret
 pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
 
@@ -716,6 +752,8 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
     let value = code.operands[0].get_value();
     code.result = value;
 
+    // drain the stack and restore the last call frame
+    // this will leave our information at the top of the stack
     machine.call_stack.restore_last_frame();
 
     // retrieve the offset
@@ -735,8 +773,6 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
     code.read_bytes = offset as u32;
     code.store = true;
 
-    // println!("return offset is:{}", offset);
-
     // retrieve the lower and top parts of the address
     let address_uhalf = machine.call_stack.stack.pop();
     let address_lhalf = machine.call_stack.stack.pop();
@@ -746,24 +782,12 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
         _ => panic!("return call resulted in stack underflow!"),
     };
 
-    // println!("address is: {}", address);
-
     // we don't do *2 on this version since we
     // stored the address in-system ( not as part of asm )
     machine.ip = address;
 
     // we are done, machine handles store calls
 
-}
-
-pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
-}
-pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
-}
-pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
 }
 
 // pop the stack and return that value,
@@ -820,12 +844,119 @@ pub fn sound_effect(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
 pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    io::stdout().flush();
+
+    let (text_buffer, parse_buffer) = (code.operands[0].get_value(),
+                                       code.operands[1].get_value());
+
+    //this a little cheat;
+    //
+    //so, we box up the function in an Rc, 
+    //which cannot lend mutable references
+    //
+    //as a result, we use a Fn, not FnMut, but to do that,
+    //we need only non-mutable bindings to persist into the
+    //closure; so we use a wrapped refcell
+    //
+    //when we de-cheat the memory view functions and force
+    //&mut for write functions that access borrow_mut( which also might
+    //lead to the breaking up of the memory and the elimination of Rc<RefCell<Vec>>),
+    //we will have to change this
+    
+    let view = machine.get_memory_view();
+    let dictionary_view = machine.get_dictionary_view();
+
+    let process_input = Rc::new( move | input: String |  {
+
+        //text and parse are addrs that indicate where
+        
+        //the text should be filled with the text input
+        
+        //the parse-buffer, if non-zero, should be filled
+        //with tokenized words from the text buffer that
+        //match the dictionary
+        
+        let mut cursor = text_buffer as u32;
+        let max_length = view.read_at(cursor);
+
+        if input.len() as u8 > max_length {
+            println!( "response too large! try again" ); 
+            return;
+        }
+
+        //we have to double-let because it actually
+        //goes from String to &str and back again
+        //
+        //im not 100% sure whats the best way to handle
+        //that uniformly at this point
+        
+        let cleaned_input = input.trim();
+        let cleaned_input = cleaned_input.to_lowercase();
+        let mut split = cleaned_input.split_whitespace();
+        let mut words : Vec<String> = Vec::new();
+        //we skip the first byte; thats the size bit, above
+
+        while let Some(word) = split.next() {
+
+            words.push(ZString::encode_word(word));
+
+            for ch in word.chars() {
+                view.write_at(cursor, ch as u8);
+                cursor += 1;
+            }
+
+        }
+        
+        if parse_buffer == 0 {
+            return;
+        }
+
+        cursor = parse_buffer as u32;
+
+        let max_tokens = view.read_at(cursor);
+        let token_count = cmp::min(max_tokens, words.len() as u8) as usize;
+
+        //so interestingly enough, the dictionary starts with a # and a list of 
+        //codes which correspond to keyboard input.
+        let num_input_codes = dictionary_view.read_at_head(0) as u32;
+
+        //after all the input codes, which are a byyte each, we have the entry length
+        let entry_length = dictionary_view.read_at_head(num_input_codes+1) as u32;
+
+        //and one after that we have the # of entries in a word
+        let dictionary_entries = dictionary_view.read_u16_at_head(num_input_codes+2) as u32;
+
+        for word in words[0..token_count].iter() {
+
+            //binary search
+            let mut lower = 0;
+            let mut upper = dictionary_entries - 1;
+            let mut pointer = 0;
+            let mut address : Option<u32> = None;
+
+            while lower <= upper {
+                pointer = lower + ( upper - lower )/2;
+                let offset = pointer*entry_length;
+                let encoded_text = dictionary_view.read_u32_at_head(offset);
+            }
+
+        }
+
+
+    } );
+
+    //let process_input = Rc::new( boxed_handler );
+
+    machine.state = MachineState::TakingInput {
+        callback: process_input,
+    }
 }
 
 // stores that aren't stores trip me up, honestly

@@ -14,7 +14,7 @@ use super::object_properties_view::*;
 const properties_length: u32 = 2;
 
 pub struct ObjectView {
-    pub object_id: u16, 
+    pub object_id: u16,
     // how long are the attributes in bytes?
     pub attributes_length: u32,
     // this is the property defaults view - mostly
@@ -35,7 +35,7 @@ impl ObjectView {
     pub fn get_child(&self) -> u16 {
 
         // first we start from the beginning of the object table
-        //then offset by attribute length + all relatives length
+        // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length +
                                //the order is parent, sibling, child
                                self.related_obj_length * 2;
@@ -59,7 +59,7 @@ impl ObjectView {
     pub fn get_sibling(&self) -> u16 {
 
         // first we start from the beginning of the object table
-        //then offset by attribute length + all relatives length
+        // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length +
                                //the order is parent, sibling, child
                                self.related_obj_length;
@@ -74,17 +74,13 @@ impl ObjectView {
         // println!("starting: {}", self.view.pointer);
         // first we start from the beginning of the object table
         // then offset by attribute length + all relatives length
-        let pointer_position = self.attributes_length +
-                               self.related_obj_length * 3;
+        let pointer_position = self.attributes_length + self.related_obj_length * 3;
 
         // we should now be at the properties table address
         // object addresses are not packed and are in dynamic mem
         let pointer = self.view.read_u16_at_head(pointer_position) as u32;
 
-        ObjectPropertiesView::create(self.object_id, 
-                                     pointer, 
-                                     &self.defaults_view, 
-                                     &self.view)
+        ObjectPropertiesView::create(self.object_id, pointer, &self.defaults_view, &self.view)
 
     }
 
@@ -93,7 +89,9 @@ impl ObjectView {
         // v4 may have up to 48
         match attribute {
             i @ 0...15 => ObjectView::is_bit_set_in_u16(i as u8, self.view.read_u16_at_head(0)),
-            i @ 16...31 => ObjectView::is_bit_set_in_u16((i as u8) - 16, self.view.read_u16_at_head(1)),
+            i @ 16...31 => {
+                ObjectView::is_bit_set_in_u16((i as u8) - 16, self.view.read_u16_at_head(1))
+            }
             _ => panic!("attempt to read an invalid attribute"),
         }
     }
@@ -106,38 +104,38 @@ impl ObjectView {
         num << 1 & word as u8 != 0
     }
 
-    pub fn set_child( &self, child_id: u16 ) {
+    pub fn set_child(&self, child_id: u16) {
         // first we start from the beginning of the object table
-        //then offset by attribute length + all relatives length
+        // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length +
                                //the order is parent, sibling, child
                                self.related_obj_length * 2;
 
-        self.view.write_at_head( pointer_position, child_id as u8 );
-        
+        self.view.write_at_head(pointer_position, child_id as u8);
+
     }
 
-    pub fn set_parent( &self, parent_id: u16 ) {
+    pub fn set_parent(&self, parent_id: u16) {
         // first we start from the beginning of the object table
-        //then offset by attribute length + all relatives length
+        // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length;
-                               //the order is parent, sibling, child
-                               //so parent has no relative offset after attributes
+        // the order is parent, sibling, child
+        // so parent has no relative offset after attributes
 
-        self.view.write_at_head( pointer_position, parent_id as u8 );
-        
+        self.view.write_at_head(pointer_position, parent_id as u8);
+
     }
 
-    pub fn set_sibling( &self, sibling_id: u16 ) {
+    pub fn set_sibling(&self, sibling_id: u16) {
         // first we start from the beginning of the object table
-        //then offset by attribute length + all relatives length
+        // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length +
                                //the order is parent, sibling, child
                                self.related_obj_length;
-                               //so parent has no relative offset after attributes
+        // so parent has no relative offset after attributes
 
-        self.view.write_at_head( pointer_position, sibling_id as u8 );
-        
+        self.view.write_at_head(pointer_position, sibling_id as u8);
+
     }
 
     pub fn set_attribute(&self, attribute: u16) {
@@ -149,10 +147,10 @@ impl ObjectView {
                 self.view.write_u16_at_head(0, new_attr_mask);
             }
             i @ 16...31 => {
-                let new_attr_mask = self.view.read_u16_at_head(1) | ((i-16) << 1);
+                let new_attr_mask = self.view.read_u16_at_head(1) | ((i - 16) << 1);
                 self.view.write_u16_at_head(1, new_attr_mask);
             }
-            err @ _ => panic!("attempt to write an invalid attribute:{}",err),
+            err @ _ => panic!("attempt to write an invalid attribute:{}", err),
         }
     }
 
@@ -165,12 +163,10 @@ impl ObjectView {
                 self.view.write_u16_at_head(0, new_attr_mask);
             }
             i @ 16...31 => {
-                let new_attr_mask = self.view.read_u16_at_head(1) & !((i-16) << 1);
+                let new_attr_mask = self.view.read_u16_at_head(1) & !((i - 16) << 1);
                 self.view.write_u16_at_head(1, new_attr_mask);
             }
-            err @ _ => panic!("attempt to write an invalid attribute:{}",err),
+            err @ _ => panic!("attempt to write an invalid attribute:{}", err),
         }
     }
-
-
 }

@@ -299,24 +299,7 @@ impl OpCode {
         // set some defaults and do stuff we will have to do anyway,
         // like filling out the operands table
 
-        let mut op_code: OpCode = OpCode {
-            ip: 0,
-            code: 0,
-            branch: false,
-            store: false,
-            print: false,
-            input: false,
-            instruction: OpCode::null_instruction,
-            form: OpForm::Short,
-            operands: [Operand::Omitted {},
-                       Operand::Omitted {},
-                       Operand::Omitted {},
-                       Operand::Omitted {}],
-            operand_count: 0,
-            read_bytes: 0,
-            result: 0,
-        };
-
+        let mut op_code: OpCode = OpCode::form_base_opcode();
 
         // make a closure here to let rust know when we want to drop
         // the mutable reference
@@ -351,6 +334,59 @@ impl OpCode {
         // caller
         op_code
 
+    }
+
+    fn form_base_opcode() -> OpCode {
+
+        // almost all of these values will be set/determined
+        // by the instruction, either in "form_opcode", "assign_instruction",
+        // or by the actual instruction code itself ( in the case of branch,
+        // store, input and print )
+        //
+        // it might be worth it to make one or two more structs here
+        // to show that responsiblity, but right now this is fairly simple
+
+        OpCode {
+            ip: 0,
+            code: 0,
+            branch: false,
+            store: false,
+            print: false,
+            input: false,
+            instruction: OpCode::null_instruction,
+            form: OpForm::Short,
+            operands: [Operand::Omitted {},
+                       Operand::Omitted {},
+                       Operand::Omitted {},
+                       Operand::Omitted {}],
+            operand_count: 0,
+            read_bytes: 0,
+            result: 0,
+        }
+
+    }
+
+    // there are cases where we need to "return true" or "return false" after
+    // branch operations - basically, we need to run two opcodes at a time
+    // even though only one is explicitly encoded ( the rtrue or rfalse will
+    // just look like a "1" or "0" as a branch address ) - i.e.we still need
+    // to perform a store call at the end, which wont happen if we merely
+    // call the function. we need the whole code to run zmachine through it again
+    //
+    // the great thing is that since most of the information is held on the
+    // stack, we don't need things like ip/code/operand count/read bytes
+    // or result - or really anything, except this instruction
+
+    pub fn form_rfalse() -> OpCode {
+        let mut rfalse = OpCode::form_base_opcode();
+        rfalse.instruction = instruction_set::rfalse;
+        rfalse
+    }
+
+    pub fn form_rtrue() -> OpCode {
+        let mut rtrue = OpCode::form_base_opcode();
+        rtrue.instruction = instruction_set::rtrue;
+        rtrue
     }
 
     // each of these functions has a match block which basically sets
