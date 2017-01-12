@@ -1,3 +1,5 @@
 external_tools/*
 target/*
 *.sw*
+*.bk
+*.txt
