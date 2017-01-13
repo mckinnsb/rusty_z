@@ -7,7 +7,7 @@ use super::Stack;
 
 use std::cmp;
 
-//for input flushing
+// for input flushing
 use std::io;
 use std::io::Write;
 
@@ -56,6 +56,20 @@ pub fn add(code: &mut OpCode, machine: &mut ZMachine) {
 
 pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
 
+    // move program counter
+    let mut address = code.operands[0].get_value();
+    println!( "{:x}", address );
+
+    //if 0 is given to call, we return false
+    if address == 0 {
+        code.operands = [ Operand::SmallConstant { value: 0 },
+                          Operand::Omitted,
+                          Operand::Omitted,
+                          Operand::Omitted, ];
+        rfalse(code, machine);
+        return;
+    }
+
     // push this current address
     // we split it in two, because the stack holds words
     // note there is more than one way to do this  we could
@@ -65,7 +79,6 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     //
     // packed addresses are really just a design around the limitation of a 16 bit
     //  system anyway )
-
     let address_lhalf = (machine.ip & 0xFFFF) as u16;
     let address_uhalf = (machine.ip >> 16) as u16;
 
@@ -76,11 +89,8 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // note its highly unlikely the conversion will be a problem here;
     // offset is not likely to be greater than 100
     // println!("pushing offset: {}", code.read_bytes);
-
     machine.call_stack.stack.push(code.read_bytes as u16);
 
-    // move program counter
-    let mut address = code.operands[0].get_value();
 
     // address is actually multiplied by a constant, depending on the version #
     // we just support 3 here, so it is always 2
@@ -105,6 +115,10 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     let mut num_args = 0;
 
     // push local variables onto the call stack
+    //
+    // this has a slightly different deconstruction than the vast majority
+    // of opcodes because its variable ( can have any number of operands, truly ),
+    // and this variable # effects how the call stack is formed
 
     for op in code.operands[1..].iter() {
         match op {
@@ -258,7 +272,7 @@ pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
         .get_property(property as u8)
         .value;
 
-    // println!("object:{}\nproperty:{}\nvalue:{}", object, property, value);
+    println!("object:{}\nproperty:{}\nvalue:{}", object, property, value);
     code.result = value;
 
 }
@@ -828,6 +842,7 @@ pub fn save(code: &mut OpCode, machine: &mut ZMachine) {
 // this sets a bit in the attributes table
 pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {
 
+    println!("{}",code);
     let (object, attr) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     machine.get_object_view(object).set_attribute(attr);
@@ -853,59 +868,62 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
     io::stdout().flush();
 
-    let (text_buffer, parse_buffer) = (code.operands[0].get_value(),
-                                       code.operands[1].get_value());
+    let (text_buffer, parse_buffer) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    //this a little cheat;
+    // this a little cheat;
     //
-    //so, we box up the function in an Rc, 
-    //which cannot lend mutable references
+    // so, we box up the function in an Rc,
+    // which cannot lend mutable references
     //
-    //as a result, we use a Fn, not FnMut, but to do that,
-    //we need only non-mutable bindings to persist into the
-    //closure; so we use a wrapped refcell
+    // as a result, we use a Fn, not FnMut, but to do that,
+    // we need only non-mutable bindings to persist into the
+    // closure; so we use a wrapped refcell
     //
-    //when we de-cheat the memory view functions and force
-    //&mut for write functions that access borrow_mut( which also might
-    //lead to the breaking up of the memory and the elimination of Rc<RefCell<Vec>>),
-    //we will have to change this
-    
+    // when we de-cheat the memory view functions and force
+    // mut for write functions that access borrow_mut( which also might
+    // lead to the breaking up of the memory and the elimination of Rc<RefCell<Vec>>),
+    // we will have to change this
+
     let view = machine.get_memory_view();
     let dictionary_view = machine.get_dictionary_view();
+    let version = machine.header.version;
 
-    let process_input = Rc::new( move | input: String |  {
+    let process_input = Rc::new(move |input: String| {
 
-        //text and parse are addrs that indicate where
-        
-        //the text should be filled with the text input
-        
-        //the parse-buffer, if non-zero, should be filled
-        //with tokenized words from the text buffer that
-        //match the dictionary
-        
+        println!("staring input");
+
+        // text and parse are addrs that indicate where
+
+        // the text should be filled with the text input
+
+        // the parse-buffer, if non-zero, should be filled
+        // with tokenized words from the text buffer that
+        // match the dictionary
+
         let mut cursor = text_buffer as u32;
         let max_length = view.read_at(cursor);
 
         if input.len() as u8 > max_length {
-            println!( "response too large! try again" ); 
+            println!("response too large! try again");
             return;
         }
 
-        //we have to double-let because it actually
-        //goes from String to &str and back again
+        // we have to double-let because it actually
+        // goes from String to &str and back again
         //
-        //im not 100% sure whats the best way to handle
-        //that uniformly at this point
-        
+        // im not 100% sure whats the best way to handle
+        // that uniformly at this point
+
         let cleaned_input = input.trim();
         let cleaned_input = cleaned_input.to_lowercase();
         let mut split = cleaned_input.split_whitespace();
-        let mut words : Vec<String> = Vec::new();
-        //we skip the first byte; thats the size bit, above
+        let mut words = Vec::new();
+
+        // we skip the first byte; thats the size bit, above
 
         while let Some(word) = split.next() {
 
-            words.push(ZString::encode_word(word));
+            words.push(word);
 
             for ch in word.chars() {
                 view.write_at(cursor, ch as u8);
@@ -913,50 +931,152 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
             }
 
         }
-        
+
         if parse_buffer == 0 {
+            println!("parse buffer is nil");
             return;
+        } else {
+            println!("parse_buffer:{}", parse_buffer);
         }
 
         cursor = parse_buffer as u32;
 
-        let max_tokens = view.read_at(cursor);
-        let token_count = cmp::min(max_tokens, words.len() as u8) as usize;
 
-        //so interestingly enough, the dictionary starts with a # and a list of 
-        //codes which correspond to keyboard input.
+        // so interestingly enough, the dictionary starts with a # and a list of
+        // codes which correspond to keyboard input.
         let num_input_codes = dictionary_view.read_at_head(0) as u32;
 
-        //after all the input codes, which are a byyte each, we have the entry length
-        let entry_length = dictionary_view.read_at_head(num_input_codes+1) as u32;
+        // after all the input codes, which are a byyte each, we have the entry length
+        let entry_length = dictionary_view.read_at_head(num_input_codes + 1) as u32;
 
-        //and one after that we have the # of entries in a word
-        let dictionary_entries = dictionary_view.read_u16_at_head(num_input_codes+2) as u32;
+        // and one after that we have the # of entries in a word
+        let dictionary_entries = dictionary_view.read_u16_at_head(num_input_codes + 2) as u32;
+
+        // so the total offset is four bytes + num_input_codes
+        let dictionary_header_offset = num_input_codes + 4;
+
+        // we need a mutable letter cursor for this double loop
+        let mut letter_cursor = 0;
+
+        // whats the max # of parsed tokens?
+        let max_tokens = view.read_at(cursor);
+        println!("max tokens:{}", max_tokens);
+
+        // determine the count from the lower of the two - the # of words,
+        // and the max count
+        let token_count = cmp::min(max_tokens, words.len() as u8) as usize;
+        //we don't write to this
+        cursor += 1;
+
+        //write the token count in the first byte of the parse buffer
+        view.write_at(cursor, token_count as u8);
+        //we write to this
+        cursor += 1;
 
         for word in words[0..token_count].iter() {
 
-            //binary search
+            // binary search
             let mut lower = 0;
             let mut upper = dictionary_entries - 1;
             let mut pointer = 0;
-            let mut address : Option<u32> = None;
+            let mut address: Option<u32> = None;
+            let mut encoded_word = ZString::encode_word(word, version);
 
             while lower <= upper {
-                pointer = lower + ( upper - lower )/2;
-                let offset = pointer*entry_length;
-                let encoded_text = dictionary_view.read_u32_at_head(offset);
+
+                pointer = lower + (upper - lower) / 2;
+
+                let offset = dictionary_header_offset + pointer * entry_length;
+                let mut found: bool = false;
+
+                let (mut encoded, mut encoded_entry) = match &mut encoded_word {
+
+                    &mut ZWord::V3 { encoded, .. } => {
+
+                        let encoded_entry = [dictionary_view.read_u16_at_head(offset),
+                                             dictionary_view.read_u16_at_head(offset + 2)];
+
+                        println!("encoded1:{}", encoded_entry[0]);
+                        println!("encoded2:{}", encoded_entry[1]);
+
+                        found = encoded_entry == encoded;
+
+                        (encoded, encoded_entry)
+
+                    }
+                    // v4 not implemented yet
+                    _ => unimplemented!(),
+                };
+
+                if found {
+                    println!("found the lookup!");
+                    address = Some(dictionary_view.pointer + pointer);
+                    break;
+                }
+
+                // note this will not work if the entries are larger than
+                // eight bytes ( 64 bits )
+                //
+                // version 8 caps out at 6
+
+                let encode_map = [encoded, encoded_entry]
+                    .into_iter()
+                    .map(|container| {
+
+                        let mut total: u64 = 0;
+
+                        for (i, value) in container.iter().enumerate() {
+                            let val = *value;
+                            let shift = ((container.len() - i - 1) * 8) as u8;
+                            total = total | ((val as u64) << shift);
+                        }
+
+                        total
+
+                        // turbofish!
+                    })
+                    .collect::<Vec<u64>>();
+
+                let (mut encoded, mut encoded_entry) = (encode_map[0], encode_map[1]);
+
+                // the ordering of the table corresponds to dictionary ordering,
+                // and is sorted
+
+                if encoded < encoded_entry {
+                    upper = pointer - 1;
+                } else {
+                    lower = pointer + 1;
+                }
+
             }
 
+            // write the address of the abbreviations table from the dictionary
+
+            match address {
+                // this might look dangerous, but abbreviation strings
+                // actually are in the lower 128k of memory ( after the header )
+                // i think the maximum size allowed is 64k - 64 bytes ( the size
+                // of the header )
+                Some(x) => dictionary_view.write_u16_at(cursor, x as u16),
+                None => dictionary_view.write_u16_at(cursor, 0),
+            }
+
+            view.write_at(cursor + 2, word.len() as u8);
+            view.write_at(cursor + 3, letter_cursor);
+
+            // increment the letter cursor, include a space
+            letter_cursor += word.len() as u8 + 1;
+
+            // increment the parse cursor by 4 bytes
+            cursor += 4;
+
+            println!("ending input");
         }
 
+    });
 
-    } );
+    machine.state = MachineState::TakingInput { callback: process_input }
 
-    //let process_input = Rc::new( boxed_handler );
-
-    machine.state = MachineState::TakingInput {
-        callback: process_input,
-    }
 }
 
 // stores that aren't stores trip me up, honestly
@@ -969,8 +1089,20 @@ pub fn store(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
+// like storew, this operates on all memory, and is
+// another store that isn't a store, as this stores
+// in the opcode and not via the machine
+
 pub fn storeb(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+
+    let (start, index, value) =
+        (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
+
+    let address = start + index;
+    machine.get_memory_view()
+        .write_at(address as u32, value as u8);
+
 }
 
 // this actually operates on the entirety of the dynamic
@@ -1000,7 +1132,12 @@ pub fn sub(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn test(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.branch = true;
+
+    let (mask, flags) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    code.result = (mask & flags == flags) as u16;
 }
 
 pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {
