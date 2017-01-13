@@ -57,7 +57,7 @@ fn main() {
         match state {
             MachineState::Running => machine.next_instruction(),
             MachineState::Stopped => break,
-            MachineState::TakingInput{ ref callback } => {
+            MachineState::TakingInput { ref callback } => {
                 machine.wait_for_input(&mut handler, callback.clone())
             }
         };

@@ -47,6 +47,13 @@ enum Abbreviation {
     Partial { z: u8 },
 }
 
+// i think it makes sense to prepare for this a little ahead of time,
+// its easy enough ( just one swap )
+pub enum ZWord {
+    V3 { decoded: [u8; 6], encoded: [u16; 2] },
+    V4 { decoded: [u8; 9], encoded: [u16; 3] },
+}
+
 pub struct ZString {
     // the "array" of ZSCII codes
     bytes: Vec<u8>,
@@ -271,8 +278,311 @@ impl ZString {
         }
     }
 
-    pub fn encode_word( word: &str ) -> String {
-        unimplemented!();
+    pub fn encode_word(word: &str, version: u8) -> ZWord {
+
+        let len = match version {
+            1...3 => 6,
+            4...8 => 9,
+            _ => panic!("version can only be 1-8!"),
+        } as usize;
+
+        let mut cache: Vec<u8> = Vec::with_capacity(len);
+
+        for ch in word.chars() {
+
+            if cache.len() == len {
+                break;
+            }
+
+            match ch { 
+                'a' => cache.push(0x6), 
+                'b' => cache.push(0x7), 
+                'c' => cache.push(0x8), 
+                'd' => cache.push(0x9), 
+                'e' => cache.push(0xA), 
+                'f' => cache.push(0xB), 
+                'g' => cache.push(0xC), 
+                'h' => cache.push(0xD), 
+                'i' => cache.push(0xE), 
+                'j' => cache.push(0xF), 
+                'k' => cache.push(0x10),
+                'l' => cache.push(0x11),
+                'm' => cache.push(0x12),
+                'n' => cache.push(0x13),
+                'o' => cache.push(0x14),
+                'p' => cache.push(0x15),
+                'q' => cache.push(0x16),
+                'r' => cache.push(0x17),
+                's' => cache.push(0x18),
+                't' => cache.push(0x19),
+                'u' => cache.push(0x1A),
+                'v' => cache.push(0x1B),
+                'w' => cache.push(0x1C),
+                'x' => cache.push(0x1D),
+                'y' => cache.push(0x1E),
+                'z' => cache.push(0x1F),
+                'A' => {
+                    cache.push(0x4);
+                    cache.push(0x6);
+                } 
+                'B' => {
+                    cache.push(0x4);
+                    cache.push(0x7);
+                } 
+                'C' => {
+                    cache.push(0x4);
+                    cache.push(0x8);
+                } 
+                'D' => {
+                    cache.push(0x4);
+                    cache.push(0x9);
+                } 
+                'E' => {
+                    cache.push(0x4);
+                    cache.push(0xA);
+                } 
+                'F' => {
+                    cache.push(0x4);
+                    cache.push(0xB);
+                } 
+                'G' => {
+                    cache.push(0x4);
+                    cache.push(0xC);
+                } 
+                'H' => {
+                    cache.push(0x4);
+                    cache.push(0xD);
+                } 
+                'I' => {
+                    cache.push(0x4);
+                    cache.push(0xE);
+                } 
+                'J' => {
+                    cache.push(0x4);
+                    cache.push(0xF);
+                } 
+                'K' => {
+                    cache.push(0x4);
+                    cache.push(0x10);
+                }
+                'L' => {
+                    cache.push(0x4);
+                    cache.push(0x11);
+                }
+                'M' => {
+                    cache.push(0x4);
+                    cache.push(0x12);
+                }
+                'N' => {
+                    cache.push(0x4);
+                    cache.push(0x13);
+                }
+                'O' => {
+                    cache.push(0x4);
+                    cache.push(0x14);
+                }
+                'P' => {
+                    cache.push(0x4);
+                    cache.push(0x15);
+                }
+                'Q' => {
+                    cache.push(0x4);
+                    cache.push(0x16);
+                }
+                'R' => {
+                    cache.push(0x4);
+                    cache.push(0x17);
+                }
+                'S' => {
+                    cache.push(0x4);
+                    cache.push(0x18);
+                }
+                'T' => {
+                    cache.push(0x4);
+                    cache.push(0x19);
+                }
+                'U' => {
+                    cache.push(0x4);
+                    cache.push(0x1A);
+                }
+                'V' => {
+                    cache.push(0x4);
+                    cache.push(0x1B);
+                }
+                'W' => {
+                    cache.push(0x4);
+                    cache.push(0x1C);
+                }
+                'X' => {
+                    cache.push(0x4);
+                    cache.push(0x1D);
+                }
+                'Y' => {
+                    cache.push(0x4);
+                    cache.push(0x1E);
+                }
+                'Z' => {
+                    cache.push(0x4);
+                    cache.push(0x1F);
+                }
+                '\n' => {
+                    cache.push(0x5);
+                    cache.push(0x7);
+                }
+                '0' => {
+                    cache.push(0x5);
+                    cache.push(0x8);
+                }
+                '1' => {
+                    cache.push(0x5);
+                    cache.push(0x9);
+                }
+                '2' => {
+                    cache.push(0x5);
+                    cache.push(0xA);
+                }
+                '3' => {
+                    cache.push(0x5);
+                    cache.push(0xB);
+                }
+                '4' => {
+                    cache.push(0x5);
+                    cache.push(0xC);
+                }
+                '5' => {
+                    cache.push(0x5);
+                    cache.push(0xD);
+                }
+                '6' => {
+                    cache.push(0x5);
+                    cache.push(0xE);
+                }
+                '7' => {
+                    cache.push(0x5);
+                    cache.push(0xF);
+                }
+                '8' => {
+                    cache.push(0x5);
+                    cache.push(0x10);
+                }
+                '9' => {
+                    cache.push(0x5);
+                    cache.push(0x11);
+                }
+                '.' => {
+                    cache.push(0x5);
+                    cache.push(0x12);
+                }
+                ',' => {
+                    cache.push(0x5);
+                    cache.push(0x13);
+                }
+                '!' => {
+                    cache.push(0x5);
+                    cache.push(0x14);
+                }
+                '?' => {
+                    cache.push(0x5);
+                    cache.push(0x15);
+                }
+                '_' => {
+                    cache.push(0x5);
+                    cache.push(0x16);
+                }
+                '#' => {
+                    cache.push(0x5);
+                    cache.push(0x17);
+                }
+                '\'' => {
+                    cache.push(0x5);
+                    cache.push(0x18);
+                }
+                '"' => {
+                    cache.push(0x5);
+                    cache.push(0x19);
+                }
+                '/' => {
+                    cache.push(0x5);
+                    cache.push(0x1A);
+                }
+                '\\' => {
+                    cache.push(0x5);
+                    cache.push(0x1B);
+                }
+                '-' => {
+                    cache.push(0x5);
+                    cache.push(0x1C);
+                }
+                ':' => {
+                    cache.push(0x5);
+                    cache.push(0x1D);
+                }
+                '(' => {
+                    cache.push(0x5);
+                    cache.push(0x1E);
+                }
+                ')' => {
+                    cache.push(0x5);
+                    cache.push(0x1F);
+                }
+                // this wont be a panic because im kind of interested
+                // to see if anything would be encoded thats not
+                // in the above list
+                _ => {
+                    println!("character not supported:{}", ch);
+                }
+            }
+
+        }
+
+        if cache.len() < len {
+            let remainder = len - cache.len();
+            for _ in 0..remainder {
+                println!("pushing");
+                // pad the remainder of the string out with shift characters
+                cache.push(0x5);
+            }
+        }
+
+        for ch in cache.iter() {
+            println!("ch:{}", ch);
+        }
+
+        let mut encoded: Vec<u16> = cache.chunks(3)
+            .map(|chunk| {
+                let (a, b, c) = (chunk[0] as u16, chunk[1] as u16, chunk[2] as u16);
+
+                let encoded = (a << 10) | (b << 5) | (c);
+
+                encoded
+
+            })
+            .collect();
+
+        let index = encoded.len();
+        encoded[index - 1] = encoded[index - 1] | 0x8000;
+
+        for word in encoded.iter() {
+            println!("word:{}", word);
+        }
+
+        match version {
+            1...3 => {
+                ZWord::V3 {
+                    decoded: [cache[0], cache[1], cache[2], cache[3], cache[4], cache[5]],
+                    encoded: [encoded[0], encoded[1]],
+                }
+            }
+            4...8 => {
+                ZWord::V4 {
+                    decoded: [cache[0], cache[1], cache[2], cache[3], cache[4], cache[5],
+                              cache[6], cache[7], cache[8]],
+                    encoded: [encoded[0], encoded[1], encoded[2]],
+                }
+            }
+            _ => panic!("version only accepts 1-8!"),
+        }
+
     }
 
     // these are all unicode characters...

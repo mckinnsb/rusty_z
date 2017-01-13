@@ -1,11 +1,11 @@
 use std::io::*;
 
 pub trait LineReader {
-    fn read_next_line(&self, buf: &mut String ) -> Result<usize>;
+    fn read_next_line(&self, buf: &mut String) -> Result<usize>;
 }
 
 impl LineReader for Stdin {
-    fn read_next_line(&self, buf: &mut String ) -> Result<usize> {
+    fn read_next_line(&self, buf: &mut String) -> Result<usize> {
         self.read_line(buf)
     }
 }
