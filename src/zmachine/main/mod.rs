@@ -86,7 +86,7 @@ impl Stack {
 pub enum MachineState {
     Stopped,
     Running,
-    //input finished takes ownership of the string
+    // input finished takes ownership of the string
     TakingInput { callback: Rc<Fn(String)> },
 }
 
@@ -425,13 +425,13 @@ impl ZMachine {
                 // increment the code, so by calling it here, it modifies the ip for
                 // us and at the end, we should be in the right spot
                 0 => {
-                    let mut rtrue = OpCode::form_rtrue();
-                    self.execute_instruction(&mut rtrue);
+                    let mut rfalse = OpCode::form_rfalse();
+                    self.execute_instruction(&mut rfalse);
                 }
 
                 1 => {
-                    let mut rfalse = OpCode::form_rfalse();
-                    self.execute_instruction(&mut rfalse);
+                    let mut rtrue = OpCode::form_rtrue();
+                    self.execute_instruction(&mut rtrue);
                 }
 
                 // branch address is defined as "address after branch data",
@@ -476,9 +476,9 @@ impl ZMachine {
 
     // wait for input, and on input, hand it to whatever code/op was waiting
     // for it
-    pub fn wait_for_input<T: LineReader>(&mut self, 
+    pub fn wait_for_input<T: LineReader>(&mut self,
                                          handler: &mut InputHandler<T>,
-                                         callback: Rc<Fn(String)> ) {
+                                         callback: Rc<Fn(String)>) {
 
         let result = match handler.get_input() {
             Some(str) => {
@@ -488,6 +488,9 @@ impl ZMachine {
             _ => false,
         };
 
+        if result {
+            self.state = MachineState::Running;
+        }
     }
 
     // this writes a variable in place - it really only specializes on the stack,
