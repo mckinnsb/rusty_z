@@ -661,6 +661,7 @@ pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
     // the string is offset by one because properties starts with the size byte,
     // then is followed by the short name of the object
     let string = ZString::create(1, &view.view, &machine.get_abbreviations_view());
+    println!( "{}", string );
 
 }
 
