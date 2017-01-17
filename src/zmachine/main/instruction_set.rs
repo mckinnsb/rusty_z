@@ -268,7 +268,8 @@ pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
 
-    let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
+    let (object, property) = (code.operands[0].get_value(), 
+                              code.operands[1].get_value());
 
     let value = machine.get_object_view(object)
         .get_properties_table_view()
@@ -294,13 +295,13 @@ pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {
     
     let property_address = code.operands[0].get_value() - 1;
     let size_byte = machine.get_memory_view().read_at(property_address as u32);
-    println!( "sizebyte:{:x}", size_byte );
+    //println!( "sizebyte:{:x}", size_byte );
 
     let ObjectPropertyInfo { size, .. } =
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
-    println!( "prop address:{:x}", property_address );
-    println!( "prop len:{}", size );
+    //println!( "prop address:{:x}", property_address );
+    //println!( "prop len:{}", size );
 
     code.result = size as u16;
 
@@ -648,8 +649,8 @@ pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.read_bytes += string.encoded_length;
 
+    //all print functions use print, instead of println
     print!("{}", string);
-    // println!("read bytes: {}", code.read_bytes);
 
 }
 
@@ -670,6 +671,8 @@ pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {
     // let ch = (code.operands[0].get_value());
     // let mut ch_str = String::with_capacity(1);
+    //
+    // this is similar to print_obj in that we do not println!
     match ZString::decode_zscii(code.operands[0].get_value()) {
         Some(x) => print!("{}", x),
         None => {}
@@ -687,8 +690,11 @@ pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
     // then is followed by the short name of the object
     let string = ZString::create(1, &view.view, &machine.get_abbreviations_view());
 
-    println!( "printing object" );
-    println!( "{}", string );
+    //we actually print instead of println here because
+    //objects can handle carriage returns themselves ( a ZString has a newline
+    //character )
+    
+    print!( "{}", string );
 
 }
 
@@ -733,11 +739,12 @@ pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
     let (object, property, value) =
         (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
 
-    //println!("writing object: {}", object);
+    //println!("************************************************");
+    //println!("WRITING object: {}", object);
     //println!("property: {}", property);
     //println!("value: {}", value);
     //println!("****");
-
+//
     machine.get_object_view(object).
         get_properties_table_view().
         //its virtually assured property is always a byte value
@@ -1275,8 +1282,13 @@ pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (object, attribute) = (code.operands[0].get_value(), code.operands[1].get_value());
 
+    //println!( "object:{}", object);
+    //println!( "attribute:{}", attribute);
+
     code.result = machine.get_object_view(object)
         .has_attribute(attribute) as u16;
+
+    //println!( "result:{}", code.result);
 
 }
 
