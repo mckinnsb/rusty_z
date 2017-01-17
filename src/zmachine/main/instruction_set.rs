@@ -286,11 +286,21 @@ pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
 
-    let property_address = code.operands[0].get_value();
+    //we subtract one because the size byte itself is actually 1 below
+    //the address given.
+    //
+    //this is kind of confusing until you realize that the value coming
+    //into this operand is coming out of get_prop_addr
+    
+    let property_address = code.operands[0].get_value() - 1;
     let size_byte = machine.get_memory_view().read_at(property_address as u32);
+    println!( "sizebyte:{:x}", size_byte );
 
     let ObjectPropertyInfo { size, .. } =
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
+
+    println!( "prop address:{:x}", property_address );
+    println!( "prop len:{}", size );
 
     code.result = size as u16;
 
@@ -675,8 +685,8 @@ pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
 
     // the string is offset by one because properties starts with the size byte,
     // then is followed by the short name of the object
-    
     let string = ZString::create(1, &view.view, &machine.get_abbreviations_view());
+
     println!( "printing object" );
     println!( "{}", string );
 
