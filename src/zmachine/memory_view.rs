@@ -52,6 +52,19 @@ pub struct MemoryView {
 }
 
 impl MemoryView {
+
+    //only takes a Vec<u8> now... no real need to make memory view a generic
+    //also it would break all the read etc functions , or at least make them
+    //really complex
+    
+    pub fn from_vec(vec: Vec<u8>) -> MemoryView {
+        let rc = Rc::new(RefCell::new(vec));
+        MemoryView {
+            memory: rc,
+            pointer: 0
+        }
+    }
+
     // i could return a usize here, but that means more
     // unnecessary casting
     fn program_offset(&self, offset: u32) -> u32 {

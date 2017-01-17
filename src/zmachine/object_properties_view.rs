@@ -84,8 +84,6 @@ impl ObjectPropertiesView {
             size: 0,
         };
 
-        // println!("object_id: {}", self.object_id);
-
         // could use a while, but thats sort of not using destructuring
         loop {
 
@@ -98,12 +96,14 @@ impl ObjectPropertiesView {
 
             let found_info = ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
-            // println!("size: {}", found_info.size);
-            // println!("id: {}", found_info.id);
+            //println!("size: {}", found_info.size);
+            //println!("id: {}", found_info.id);
 
             if found_info.id == info.id {
                 info.size = found_info.size;
-                info.addr = Some(pointer_cursor);
+                //skip the size byte here
+                //just the address of the start of the property
+                info.addr = Some(pointer_cursor + 1);
                 break;
             }
 
@@ -131,8 +131,8 @@ impl ObjectPropertiesView {
             None => self.get_property_default(property_index),
             Some(addr) => {
                 match info.size {
-                    1 => self.view.read_at_head(addr + 1) as u16,
-                    2 => self.view.read_u16_at_head(addr + 1),
+                    1 => self.view.read_at_head(addr) as u16,
+                    2 => self.view.read_u16_at_head(addr),
                     _ => {
                         panic!("you have an address but no size, or are trying to read a property \
                                 of length > 2")

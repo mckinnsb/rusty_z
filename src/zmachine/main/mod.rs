@@ -82,6 +82,8 @@ impl Stack {
     }
 }
 
+//once this is a FnMut or FnOnce, I don't think we
+//can clone it anymore.
 #[derive(Clone)]
 pub enum MachineState {
     Stopped,
@@ -296,7 +298,6 @@ impl ZMachine {
 
     }
 
-
     pub fn next_instruction(&mut self) {
 
         // a non-mutable memory view,
@@ -311,9 +312,14 @@ impl ZMachine {
 
         let word = view.peek_at_instruction();
         let mut op_code = OpCode::form_opcode(word);
-        op_code.ip = self.ip;
 
-        //println!("ip: {:x}", op_code.ip);
+        op_code.ip = self.ip;
+        //println!( "ip: {:x}", op_code.ip );
+
+        {
+            let code_ref = &mut op_code;
+            OpCode::assign_instruction(code_ref);
+        }
 
         // we get a mutable reference to the call stack
         // because variables can augment them
@@ -324,8 +330,9 @@ impl ZMachine {
             let stack = &mut self.call_stack;
             // have the view.
             op_code.read_variables(view, globals, stack);
-            // println!("{}", op_code);
         }
+
+        //println!( "{}", op_code );
 
         self.execute_instruction(&mut op_code);
 
@@ -394,16 +401,18 @@ impl ZMachine {
 
             let offset = match one_bit {
                 // we have to mask against the control bits, here
-                true => (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16,
+                true => {
+                    (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16
+                }
                 false => {
 
-                    let fourteen_bit = view.read_u16_at_head(op_code.read_bytes) &
-                                       0b0011111111111111;
+                    let mut fourteen_bit = view.read_u16_at_head(op_code.read_bytes) &
+                                           0b0011111111111111;
 
                     if fourteen_bit & 0x0200 != 0 {
                         // propagate the sign
-                        fourteen_bit & 1 << 15;
-                        fourteen_bit & 1 << 14;
+                        fourteen_bit = fourteen_bit & 1 << 15;
+                        fourteen_bit = fourteen_bit & 1 << 14;
                     }
 
                     fourteen_bit as i16
@@ -426,11 +435,13 @@ impl ZMachine {
                 // us and at the end, we should be in the right spot
                 0 => {
                     let mut rfalse = OpCode::form_rfalse();
+                    //println!( "returning from branch false" );
                     self.execute_instruction(&mut rfalse);
                 }
 
                 1 => {
                     let mut rtrue = OpCode::form_rtrue();
+                    //println!( "returning from branch true" );
                     self.execute_instruction(&mut rtrue);
                 }
 
@@ -444,6 +455,7 @@ impl ZMachine {
                         (op_code.read_bytes as i16) + offset + (branch_byte_offset as i16) - 2;
 
                     self.ip = ((self.ip as i32) + (difference as i32)) as u32;
+                    //println!( "branching to :{:x}", self.ip );
                 }
 
             }
@@ -452,6 +464,7 @@ impl ZMachine {
 
             let difference = op_code.read_bytes + branch_byte_offset;
             self.ip += difference;
+            //println!( "branch failed, moving to :{:x}", self.ip );
 
         }
     }

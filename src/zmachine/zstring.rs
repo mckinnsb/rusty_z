@@ -35,6 +35,16 @@ impl Alphabet {
     }
 }
 
+impl fmt::Display for Alphabet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,"{}",match self {
+            &Alphabet::A0 => "A0",
+            &Alphabet::A1 => "A1",
+            &Alphabet::A2 => "A2",
+        })
+    }
+}
+
 enum BigChar {
     None,
     Building,
@@ -50,8 +60,36 @@ enum Abbreviation {
 // i think it makes sense to prepare for this a little ahead of time,
 // its easy enough ( just one swap )
 pub enum ZWord {
-    V3 { decoded: [u8; 6], encoded: [u16; 2] },
-    V4 { decoded: [u8; 9], encoded: [u16; 3] },
+    V3 { decoded: [u8; 6], encoded: [u8; 4] },
+    V4 { decoded: [u8; 9], encoded: [u8; 6] },
+}
+
+impl ZWord {
+
+    //this returns a copy, not the original
+    pub fn decoded_as_vec(&self) -> Vec<u8> {
+        match self {
+           &ZWord::V3{ decoded, ..} => decoded.to_vec(),
+           &ZWord::V4{ decoded, ..} => decoded.to_vec(),
+        }
+    }
+
+    //this returns a copy, not the original
+    pub fn encoded_as_vec(&self) -> Vec<u8> {
+        match self {
+           &ZWord::V3{ encoded, ..} => encoded.to_vec(),
+           &ZWord::V4{ encoded, ..} => encoded.to_vec(),
+        }
+    }
+
+    //this gives the DECODED string length, not the encoded one
+    pub fn len(&self) -> usize {
+        match self {
+           &ZWord::V3{ decoded, ..} => decoded.len(),
+           &ZWord::V4{ decoded, ..} => decoded.len(),
+        }
+    }
+
 }
 
 pub struct ZString {
@@ -125,6 +163,8 @@ impl ZString {
         let mut printing_abbreviation = Abbreviation::None;
 
         for ch in zchars.iter() {
+
+            //println!( "{}", ch );
 
             // copy the byte, its fine. i don't care. ill probably end up doing it anyway.
             //
@@ -274,7 +314,7 @@ impl ZString {
             (0x1E, &Alphabet::A2) => '(',
             (0x1F, &Alphabet::A2) => ')',
             (0, _) => ' ',
-            _ => panic!("could not match character : {}", ch),
+            _ => panic!("could not match character:{}, alphabet:{}", ch, alphabet),
         }
     }
 
@@ -538,46 +578,50 @@ impl ZString {
         if cache.len() < len {
             let remainder = len - cache.len();
             for _ in 0..remainder {
-                println!("pushing");
+                //println!("pushing");
                 // pad the remainder of the string out with shift characters
                 cache.push(0x5);
             }
         }
 
-        for ch in cache.iter() {
-            println!("ch:{}", ch);
+        let mut encoded : Vec<u8> = Vec::with_capacity(len/3);
+
+        for chunk in cache.chunks(3) {
+
+          let (a, b, c) = (chunk[0] as u16, chunk[1] as u16, chunk[2] as u16);
+
+          let encoded_word = (a << 10) | (b << 5) | (c);
+
+          //println!( "encoded_word:{:b}", encoded_word );
+
+          let uhalf = (encoded_word >> 8) as u8;
+          let lhalf = (encoded_word) as u8;
+
+          encoded.push( uhalf );
+          encoded.push( lhalf );
+
         }
-
-        let mut encoded: Vec<u16> = cache.chunks(3)
-            .map(|chunk| {
-                let (a, b, c) = (chunk[0] as u16, chunk[1] as u16, chunk[2] as u16);
-
-                let encoded = (a << 10) | (b << 5) | (c);
-
-                encoded
-
-            })
-            .collect();
 
         let index = encoded.len();
-        encoded[index - 1] = encoded[index - 1] | 0x8000;
 
-        for word in encoded.iter() {
-            println!("word:{}", word);
-        }
+        //we set the second to last bit of the map and set
+        //it as the high mark
+        //println!( "encoded len:{}", index);
+
+        encoded[index - 2] = encoded[index - 2] | 0x80;
 
         match version {
             1...3 => {
                 ZWord::V3 {
                     decoded: [cache[0], cache[1], cache[2], cache[3], cache[4], cache[5]],
-                    encoded: [encoded[0], encoded[1]],
+                    encoded: [encoded[0], encoded[1], encoded[2], encoded[3]],
                 }
             }
             4...8 => {
                 ZWord::V4 {
                     decoded: [cache[0], cache[1], cache[2], cache[3], cache[4], cache[5],
                               cache[6], cache[7], cache[8]],
-                    encoded: [encoded[0], encoded[1], encoded[2]],
+                    encoded: [encoded[0], encoded[1], encoded[2], encoded[3], encoded[4], encoded[5]],
                 }
             }
             _ => panic!("version only accepts 1-8!"),

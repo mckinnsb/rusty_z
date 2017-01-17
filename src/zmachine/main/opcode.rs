@@ -62,6 +62,7 @@ pub enum Operand {
 }
 
 impl fmt::Display for Operand {
+
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
         let formatted = match self {
@@ -166,7 +167,8 @@ pub struct OpCode {
 }
 
 impl OpCode {
-    fn assign_instruction(code: &mut OpCode) {
+
+    pub fn assign_instruction(code: &mut OpCode) {
 
         // the form is an object that does not copy, so we need a reference
         // to it
@@ -275,7 +277,7 @@ impl OpCode {
             (&OpForm::Variable, _, 0x14) => instruction_set::input_stream,
             (&OpForm::Variable, _, 0x15) => instruction_set::sound_effect,
             // end
-            err @ _ => panic!("Instruction not found!: {},{},{}", err.0, err.1, err.2),
+            err @ _ => panic!("Instruction not found!: form: {}, num_ops: {}, op_code: {}\n IP: {:x}", err.0, err.1, err.2, code.ip),
         };
 
         code.instruction = instruction;
@@ -326,12 +328,6 @@ impl OpCode {
             }
         }
 
-        {
-            let code_ref = &mut op_code;
-            OpCode::assign_instruction(code_ref);
-        }
-        // since we dropped the mutable reference, you can have it now,
-        // caller
         op_code
 
     }
