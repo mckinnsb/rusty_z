@@ -32,8 +32,6 @@ fn main() {
     // we then copy it as a vector using std::slice
     let data_buffer = data_ref.to_vec();
 
-    println!("file read was {} bytes long", file_size);
-
     if data_buffer.len() <= 0 {
         panic!("Could not read file!");
     }
@@ -47,9 +45,11 @@ fn main() {
 
     let mut handler = input_handler();
     let mut machine = ZMachine::new(data_buffer);
-    let status = machine.header.get_status();
 
+    /*
+    let status = machine.header.get_status();
     display(&status);
+    */
 
     // this might really need to change
     loop {

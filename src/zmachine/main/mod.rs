@@ -332,7 +332,7 @@ impl ZMachine {
             op_code.read_variables(view, globals, stack);
         }
 
-        //println!( "{}", op_code );
+        //println!( "{:x}", op_code.ip );
 
         self.execute_instruction(&mut op_code);
 

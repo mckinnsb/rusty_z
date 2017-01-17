@@ -88,20 +88,24 @@ impl ObjectView {
         // this will also have to change with the new version
         // v4 may have up to 48
         match attribute {
-            i @ 0...15 => ObjectView::is_bit_set_in_u16(i as u8, self.view.read_u16_at_head(0)),
-            i @ 16...31 => {
-                ObjectView::is_bit_set_in_u16((i as u8) - 16, self.view.read_u16_at_head(1))
+            i @ 0...31 => {
+                ObjectView::is_bit_set_in_u32((31 - i) as u8, 
+                                               self.view.read_u32_at_head(0))
             }
             _ => panic!("attempt to read an invalid attribute"),
         }
     }
 
     pub fn is_bit_set(num: u8, byte: u8) -> bool {
-        num << 1 & byte != 0
+        (1 << num) & byte != 0
     }
 
     pub fn is_bit_set_in_u16(num: u8, word: u16) -> bool {
-        num << 1 & word as u8 != 0
+        (1 << (num as u16)) & word != 0
+    }
+
+    pub fn is_bit_set_in_u32(num: u8, dword: u32) -> bool {
+        (1 << (num as u32)) & dword != 0
     }
 
     pub fn set_child(&self, child_id: u16) {
