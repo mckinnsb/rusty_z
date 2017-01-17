@@ -6,6 +6,8 @@ pub struct ObjectProperty {
     pub info: ObjectPropertyInfo,
 }
 
+#[derive(Clone)]
+#[derive(Copy)]
 pub struct ObjectPropertyInfo {
     // this is an option, because if not found, it will be none
     pub addr: Option<u32>,
@@ -117,7 +119,7 @@ impl ObjectPropertiesView {
 
     // gets the property default for this property
     pub fn get_property_default(&self, property_index: u8) -> u16 {
-        self.view.read_u16_at_head((property_index as u32 - 1) * 2)
+        self.defaults_view.read_u16_at_head((property_index as u32 - 1) * 2)
     }
 
     // note that this is a little inefficient. but whatever
@@ -128,8 +130,13 @@ impl ObjectPropertiesView {
         let info = self.get_property_info(property_index);
 
         let value = match info.addr {
-            None => self.get_property_default(property_index),
+            None => {
+                //println!( "reading default for:{}", property_index );
+                self.get_property_default(property_index)
+            }
             Some(addr) => {
+                //println!( "found addr: {}", addr );
+                //println!( "+ pointer: {}", self.get_property_addr_from_info(info));
                 match info.size {
                     1 => self.view.read_at_head(addr) as u16,
                     2 => self.view.read_u16_at_head(addr),
@@ -145,14 +152,6 @@ impl ObjectPropertiesView {
             info: info,
             value: value,
         }
-
-    }
-
-    // gets property value by fetching the property and returning the value
-    pub fn get_property_value(&self, property_index: u8) -> u16 {
-
-        let property = self.get_property(property_index);
-        property.value
 
     }
 

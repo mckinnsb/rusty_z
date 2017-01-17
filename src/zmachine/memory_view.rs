@@ -99,6 +99,10 @@ impl MemoryView {
         result
     }
 
+    pub fn read_u16_at_head(&self, offset: u32) -> u16 {
+        self.read_u16_at(self.pointer + offset)
+    }
+
     pub fn read_u32_at(&self, address: u32) -> u32 {
         let upper_half = (self.read_u16_at(address) as u32) << 16;
         let lower_half = self.read_u16_at(address + 2) as u32;
@@ -107,14 +111,9 @@ impl MemoryView {
         result
     }
 
-    pub fn read_u16_at_head(&self, offset: u32) -> u16 {
-        self.read_u16_at(self.pointer + offset)
-    }
-
     pub fn read_u32_at_head(&self, offset: u32) -> u32 {
         self.read_u32_at(self.pointer + offset)
     }
-
 
     // in the future, i would actually like to make this "mut self"
     //
@@ -148,4 +147,5 @@ impl MemoryView {
     pub fn write_u16_at_head(&self, offset: u32, value: u16) {
         self.write_u16_at(self.pointer + offset, value);
     }
+
 }
