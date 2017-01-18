@@ -429,16 +429,61 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
     // println!( "address: {:x}, op_code:{}", machine.ip, code );
 
     if child != 0 {
+
         let child_view = machine.get_object_view(child);
+        let current_parent = child_view.get_parent();
+
+        //we are done if they are the same
+        if child_view.get_parent() == parent {
+            return;
+        }
+
+        //if the current parent is not 0, we have to deparent
+        if current_parent != 0 {
+
+            let parent_view = machine.get_object_view(current_parent);
+            let mut current_child = parent_view.get_child();
+
+            //i would try to generalize the logic, but as it turns out, you do completely
+            //different things
+            if current_child == child {
+                //if first child, set parent's new first child to child's sibling
+                parent_view.set_child(child_view.get_sibling());
+            }
+            else {
+                //else, progress through children until child is found, then
+                //set previous child to child's sibling
+                let mut last_child = current_child;
+
+                loop {
+
+                    last_child = current_child;
+                    current_child = machine.get_object_view(current_child).get_sibling();
+
+                    if current_child == child {
+                        break;
+                    }
+
+                    if current_child == 0 {
+                        panic!( "object tree badly formed - object marked as having a parent it does not");
+                    }
+
+                }
+
+                let new_sibling = machine.get_object_view(current_child).get_sibling();
+                machine.get_object_view(last_child).set_sibling(new_sibling);
+
+            }
+        }
 
         // in the case of 0, this deparents
         child_view.set_parent(parent);
+
     }
 
     if parent != 0 {
 
         let parent_view = machine.get_object_view(parent);
-
         let old_child = parent_view.get_child();
 
         // in the case of 0, this empties
@@ -447,7 +492,6 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
         if child != 0 {
             // we could make this more efficient, but it would get kind of ugly
             let child_view = machine.get_object_view(child);
-
             child_view.set_sibling(old_child);
         }
     }
