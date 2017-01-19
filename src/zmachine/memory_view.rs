@@ -52,16 +52,15 @@ pub struct MemoryView {
 }
 
 impl MemoryView {
+    // only takes a Vec<u8> now... no real need to make memory view a generic
+    // also it would break all the read etc functions , or at least make them
+    // really complex
 
-    //only takes a Vec<u8> now... no real need to make memory view a generic
-    //also it would break all the read etc functions , or at least make them
-    //really complex
-    
     pub fn from_vec(vec: Vec<u8>) -> MemoryView {
         let rc = Rc::new(RefCell::new(vec));
         MemoryView {
             memory: rc,
-            pointer: 0
+            pointer: 0,
         }
     }
 
@@ -147,5 +146,4 @@ impl MemoryView {
     pub fn write_u16_at_head(&self, offset: u32, value: u16) {
         self.write_u16_at(self.pointer + offset, value);
     }
-
 }

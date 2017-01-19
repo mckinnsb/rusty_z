@@ -67,6 +67,10 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     //i mean the opcode then stores 0 at the value on branch
     //so we fake the end of ret and return
     //we also don't touch read bytes or anything like that at all
+    // if 0 is given to call, we "return" false, and by return
+    // i mean the opcode then stores 0 at the value on branch
+    // so we fake the end of ret and return
+    // we also don't touch read bytes or anything like that at all
     if address == 0 {
         code.result = 0;
         code.store = true;

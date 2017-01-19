@@ -82,8 +82,8 @@ impl Stack {
     }
 }
 
-//once this is a FnMut or FnOnce, I don't think we
-//can clone it anymore.
+// once this is a FnMut or FnOnce, I don't think we
+// can clone it anymore.
 #[derive(Clone)]
 pub enum MachineState {
     Stopped,
@@ -399,10 +399,13 @@ impl ZMachine {
 
         if (branch) {
 
-            let offset = match one_bit {
+
+            let offset: (bool, i16) = match one_bit {
                 // we have to mask against the control bits, here
                 true => {
-                    (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16
+                    // this should still be a positive # since we do not prop the bytes
+                    // it can be from 0 to 63
+                    (true, (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16)
                 }
                 false => {
 
@@ -411,11 +414,12 @@ impl ZMachine {
 
                     if fourteen_bit & 0x0200 != 0 {
                         // propagate the sign
-                        fourteen_bit = fourteen_bit & 1 << 15;
-                        fourteen_bit = fourteen_bit & 1 << 14;
+                        fourteen_bit = fourteen_bit | (1 << 15);
+                        fourteen_bit = fourteen_bit | (1 << 14);
                     }
 
-                    fourteen_bit as i16
+                    println!("fourteen bit:{}", fourteen_bit);
+                    (false, fourteen_bit as i16)
 
                 }
             };
@@ -423,6 +427,11 @@ impl ZMachine {
 
             match offset {
 
+                // the below only applies when the branch form is one byte - i mistakenly
+                // assumed that 0 or 1 would be encoded as two bytes, which, in retrospect,
+                // does not make much sense ( although im not sure why it wouldn't be allowed -
+                // it does actually seem like this introduces a control dependency ).
+                //
                 // in the case of 1 or 0, we return true or false from the function,
                 // which is actually "in" the instruction set,
                 // so this part is a little messy;
@@ -433,13 +442,13 @@ impl ZMachine {
                 // this works because return does not actually let zmachine
                 // increment the code, so by calling it here, it modifies the ip for
                 // us and at the end, we should be in the right spot
-                0 => {
+                (true, 0) => {
                     let mut rfalse = OpCode::form_rfalse();
                     //println!( "returning from branch false" );
                     self.execute_instruction(&mut rfalse);
                 }
 
-                1 => {
+                (true, 1) => {
                     let mut rtrue = OpCode::form_rtrue();
                     //println!( "returning from branch true" );
                     self.execute_instruction(&mut rtrue);
@@ -450,9 +459,9 @@ impl ZMachine {
                 // "-2, + branch offset"
                 // not entirely sure why they felt the -2 was necessary?
                 // maybe it makes sense in inform syntax
-                _ => {
-                    let difference =
-                        (op_code.read_bytes as i16) + offset + (branch_byte_offset as i16) - 2;
+                (_, x) => {
+                    let difference = (op_code.read_bytes as i16) + x + (branch_byte_offset as i16) -
+                                     2;
 
                     self.ip = ((self.ip as i32) + (difference as i32)) as u32;
                     //println!( "branching to :{:x}", self.ip );

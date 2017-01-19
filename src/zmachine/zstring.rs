@@ -37,11 +37,13 @@ impl Alphabet {
 
 impl fmt::Display for Alphabet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,"{}",match self {
-            &Alphabet::A0 => "A0",
-            &Alphabet::A1 => "A1",
-            &Alphabet::A2 => "A2",
-        })
+        write!(f,
+               "{}",
+               match self {
+                   &Alphabet::A0 => "A0",
+                   &Alphabet::A1 => "A1",
+                   &Alphabet::A2 => "A2",
+               })
     }
 }
 
@@ -65,31 +67,29 @@ pub enum ZWord {
 }
 
 impl ZWord {
-
-    //this returns a copy, not the original
+    // this returns a copy, not the original
     pub fn decoded_as_vec(&self) -> Vec<u8> {
         match self {
-           &ZWord::V3{ decoded, ..} => decoded.to_vec(),
-           &ZWord::V4{ decoded, ..} => decoded.to_vec(),
+            &ZWord::V3 { decoded, .. } => decoded.to_vec(),
+            &ZWord::V4 { decoded, .. } => decoded.to_vec(),
         }
     }
 
-    //this returns a copy, not the original
+    // this returns a copy, not the original
     pub fn encoded_as_vec(&self) -> Vec<u8> {
         match self {
-           &ZWord::V3{ encoded, ..} => encoded.to_vec(),
-           &ZWord::V4{ encoded, ..} => encoded.to_vec(),
+            &ZWord::V3 { encoded, .. } => encoded.to_vec(),
+            &ZWord::V4 { encoded, .. } => encoded.to_vec(),
         }
     }
 
-    //this gives the DECODED string length, not the encoded one
+    // this gives the DECODED string length, not the encoded one
     pub fn len(&self) -> usize {
         match self {
-           &ZWord::V3{ decoded, ..} => decoded.len(),
-           &ZWord::V4{ decoded, ..} => decoded.len(),
+            &ZWord::V3 { decoded, .. } => decoded.len(),
+            &ZWord::V4 { decoded, .. } => decoded.len(),
         }
     }
-
 }
 
 pub struct ZString {
@@ -164,7 +164,7 @@ impl ZString {
 
         for ch in zchars.iter() {
 
-            //println!( "{}", ch );
+            // println!( "{}", ch );
 
             // copy the byte, its fine. i don't care. ill probably end up doing it anyway.
             //
@@ -578,35 +578,35 @@ impl ZString {
         if cache.len() < len {
             let remainder = len - cache.len();
             for _ in 0..remainder {
-                //println!("pushing");
+                // println!("pushing");
                 // pad the remainder of the string out with shift characters
                 cache.push(0x5);
             }
         }
 
-        let mut encoded : Vec<u8> = Vec::with_capacity(len/3);
+        let mut encoded: Vec<u8> = Vec::with_capacity(len / 3);
 
         for chunk in cache.chunks(3) {
 
-          let (a, b, c) = (chunk[0] as u16, chunk[1] as u16, chunk[2] as u16);
+            let (a, b, c) = (chunk[0] as u16, chunk[1] as u16, chunk[2] as u16);
 
-          let encoded_word = (a << 10) | (b << 5) | (c);
+            let encoded_word = (a << 10) | (b << 5) | (c);
 
-          //println!( "encoded_word:{:b}", encoded_word );
+            // println!( "encoded_word:{:b}", encoded_word );
 
-          let uhalf = (encoded_word >> 8) as u8;
-          let lhalf = (encoded_word) as u8;
+            let uhalf = (encoded_word >> 8) as u8;
+            let lhalf = (encoded_word) as u8;
 
-          encoded.push( uhalf );
-          encoded.push( lhalf );
+            encoded.push(uhalf);
+            encoded.push(lhalf);
 
         }
 
         let index = encoded.len();
 
-        //we set the second to last bit of the map and set
-        //it as the high mark
-        //println!( "encoded len:{}", index);
+        // we set the second to last bit of the map and set
+        // it as the high mark
+        // println!( "encoded len:{}", index);
 
         encoded[index - 2] = encoded[index - 2] | 0x80;
 
@@ -621,7 +621,8 @@ impl ZString {
                 ZWord::V4 {
                     decoded: [cache[0], cache[1], cache[2], cache[3], cache[4], cache[5],
                               cache[6], cache[7], cache[8]],
-                    encoded: [encoded[0], encoded[1], encoded[2], encoded[3], encoded[4], encoded[5]],
+                    encoded: [encoded[0], encoded[1], encoded[2], encoded[3], encoded[4],
+                              encoded[5]],
                 }
             }
             _ => panic!("version only accepts 1-8!"),

@@ -277,7 +277,13 @@ impl OpCode {
             (&OpForm::Variable, _, 0x14) => instruction_set::input_stream,
             (&OpForm::Variable, _, 0x15) => instruction_set::sound_effect,
             // end
-            err @ _ => panic!("Instruction not found!: form: {}, num_ops: {}, op_code: {}\n IP: {:x}", err.0, err.1, err.2, code.ip),
+            err @ _ => {
+                panic!("Instruction not found!: form: {}, num_ops: {}, op_code: {}\n IP: {:x}",
+                       err.0,
+                       err.1,
+                       err.2,
+                       code.ip)
+            }
         };
 
         code.instruction = instruction;

@@ -89,8 +89,7 @@ impl ObjectView {
         // v4 may have up to 48
         match attribute {
             i @ 0...31 => {
-                ObjectView::is_bit_set_in_u32((31 - i) as u8, 
-                                               self.view.read_u32_at_head(0))
+                ObjectView::is_bit_set_in_u32((31 - i) as u8, self.view.read_u32_at_head(0))
             }
             _ => panic!("attempt to read an invalid attribute"),
         }
