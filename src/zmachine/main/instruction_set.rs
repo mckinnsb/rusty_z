@@ -59,9 +59,9 @@ pub fn add(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
 
     // move program counter
-    let mut address = code.operands[0].get_value();
-    //println!( "//////////////");
-    //println!( "calling {:x}", address );
+    // address is actually multiplied by a constant, depending on the version #
+    // we just support 3 here, so it is always 2
+    let mut address = (code.operands[0].get_value() as u32 ) * 2;
 
     //if 0 is given to call, we "return" false, and by return
     //i mean the opcode then stores 0 at the value on branch
@@ -94,10 +94,8 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // println!("pushing offset: {}", code.read_bytes);
     machine.call_stack.stack.push(code.read_bytes as u16);
 
-
-    // address is actually multiplied by a constant, depending on the version #
-    // we just support 3 here, so it is always 2
-    machine.ip = (address as u32) * 2;
+    // change the instruction pointer
+    machine.ip = address;
 
     // set the new call stack
     machine.call_stack.switch_to_new_frame();
@@ -620,7 +618,7 @@ pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (start, index) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    let address = (start as u32) + (index as u32 * 2);
+    let address = (start as u32) + (index as u32) * 2;
 
     code.result = machine.get_memory_view()
         .read_u16_at(address as u32);
@@ -849,7 +847,7 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
 
     // retrieve the offset
     let offset = match machine.call_stack.stack.pop() {
-        Some(x) => x,
+        Some(x) => x as u32,
         None => panic!("stack underflow when restoring stack offset!"),
     };
 
@@ -864,7 +862,7 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
     //
     // we add the offset to complete the "fake"
 
-    code.read_bytes = offset as u32;
+    code.read_bytes = offset;
     code.store = true;
 
     // retrieve the lower and top parts of the address
@@ -974,13 +972,7 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
     let abbreviations_view = machine.get_abbreviations_view();
     let version = machine.header.version;
 
-    //println!( "**Take Input**" );
-
     let process_input = Rc::new(move |input: String| {
-
-        //println!( "**********************************************************************" );
-        //println!( "**********************************************************************" );
-        //println!( "**********************************************************************" );
 
         // text and parse are addrs that indicate where
 
@@ -997,7 +989,9 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
         let mut cursor = text_buffer as u32;
         let max_length = view.read_at(cursor);
 
-        //we also don't write over this
+        //we also don't write over the max length,
+        //i believe that stays the same all game
+        
         cursor += 1;
 
         if input.len() as u8 > max_length {
@@ -1042,17 +1036,8 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
 fn sread_write_to_text_buffer( view: &MemoryView, mut split: SplitWhitespace, mut text_buffer: u32 ) -> Vec<String> {
 
-    //size hint might return the length of the iterator,
-    //not sure if splitwhitespace does
-    let hint = split.size_hint();
-
-    //the upper bound is last
-    let size = match hint.1 {
-        None => 32,
-        Some(x) => x,
-    };
-
-    let mut words = Vec::with_capacity(size);
+    //8 words is probably a reasonable upper bound
+    let mut words = Vec::with_capacity(8);
 
     while let Some(word) = split.next() {
 
@@ -1107,7 +1092,7 @@ fn sread_write_to_parse_buffer( view: &MemoryView,
     // which indicates the start of the word in the sentence
     // rather than the place in memory
     
-    let mut letter_cursor = 0;
+    let mut letter_cursor = 1;
 
     for word in words[0..token_count].iter() {
 
