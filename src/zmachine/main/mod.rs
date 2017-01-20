@@ -332,7 +332,7 @@ impl ZMachine {
             op_code.read_variables(view, globals, stack);
         }
 
-        // println!("{:x}", op_code.ip);
+        //println!("{:x}", op_code.ip);
 
         self.execute_instruction(&mut op_code);
 
@@ -413,15 +413,16 @@ impl ZMachine {
                     let mut fourteen_bit = view.read_u16_at_head(op_code.read_bytes) &
                                            0b0011111111111111;
 
-                    // println!("fourteen bit before mask:{}", fourteen_bit);
+                    //println!( "fourteen bit is:{:b}", fourteen_bit );
 
-                    if fourteen_bit & 0x0200 != 0 {
+                    if fourteen_bit & 0x2000 != 0 {
                         // propagate the sign
-                        fourteen_bit |= (1 << 15);
-                        fourteen_bit |= (1 << 14);
+                        fourteen_bit = fourteen_bit | (1 << 15);
+                        fourteen_bit = fourteen_bit | (1 << 14);
                     }
 
-                    // println!("fourteen bit:{}", fourteen_bit);
+                    //println!( "corrected fourteen bit is:{}", fourteen_bit );
+                    //println!( "converted fourteen bit is:{}", fourteen_bit as i16 );
 
                     (false, fourteen_bit as i16)
 
@@ -448,13 +449,13 @@ impl ZMachine {
                 // us and at the end, we should be in the right spot
                 (true, 0) => {
                     let mut rfalse = OpCode::form_rfalse();
-                    // println!("returning from branch false");
+                    //println!("returning from branch false");
                     self.execute_instruction(&mut rfalse);
                 }
 
                 (true, 1) => {
                     let mut rtrue = OpCode::form_rtrue();
-                    // println!("returning from branch true");
+                    //println!("returning from branch true");
                     self.execute_instruction(&mut rtrue);
                 }
 
@@ -465,15 +466,16 @@ impl ZMachine {
                 // maybe it makes sense in inform syntax
                 (_, x) => {
 
-                    // println!("read at:{:x}", view.pointer + op_code.read_bytes);
-                    // println!("diff was:{}", x);
+                    //println!("read at:{:x}", view.pointer + op_code.read_bytes);
+                    //println!("diff was:{}", x);
 
                     let difference = (op_code.read_bytes as i16) + x + (branch_byte_offset as i16) -
                                      2;
 
                     self.ip = ((self.ip as i32) + (difference as i32)) as u32;
 
-                    // println!("branching to :{:x}", self.ip);
+                    //println!("branching to :{:x}", self.ip);
+                    
                 }
 
             }
@@ -482,10 +484,12 @@ impl ZMachine {
 
             let difference = op_code.read_bytes + branch_byte_offset;
             self.ip += difference;
-            // print!("branch failed, moving to : ");
+
+            //print!("branch failed, moving to : ");
 
         }
     }
+
     // this JUST reads a variable, but does not modify the stack in any way
     // its different from the opcode functions, which we may merge into zmachine,
     // or may not
@@ -524,6 +528,7 @@ impl ZMachine {
         if result {
             self.state = MachineState::Running;
         }
+
     }
 
     // this writes a variable in place - it really only specializes on the stack,

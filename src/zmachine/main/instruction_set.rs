@@ -537,7 +537,6 @@ pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {
 // since that question would make no sense, unless the answer was also
 // "nothing", but that would just be like a jump( since its an unconditional
 // branch
-
 pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.branch = true;
