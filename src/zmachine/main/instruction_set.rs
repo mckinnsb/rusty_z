@@ -2,6 +2,7 @@ extern crate rand;
 use super::super::object_properties_view::*;
 use super::super::zstring::*;
 use super::super::memory_view::MemoryView;
+use super::super::object_view::ObjectView;
 use super::opcode::*;
 use super::ZMachine;
 use super::MachineState;
@@ -13,6 +14,7 @@ use std::cmp;
 use std::io;
 use std::io::Write;
 use std::str::SplitWhitespace;
+use std::process;
 
 use std::rc::*;
 
@@ -37,7 +39,6 @@ use std::rc::*;
 // part of zmachine, but its really still an op
 // code, albiet a really effing powerful one,
 // and that would get awkward abstraction-wise
-
 pub fn and(code: &mut OpCode, machine: &mut ZMachine) {
     code.store = true;
     code.result = code.operands[0].get_value() & code.operands[1].get_value();
@@ -166,10 +167,6 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
 
     // done!
 
-}
-
-pub fn call_1s(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
 }
 
 // this clears a bit in the attributes table
@@ -422,7 +419,7 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
     let (child, parent) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     // child will never be 0, parent might be though
-    let child_view = machine.get_object_view(child);
+    let mut child_view = machine.get_object_view(child);
     let current_parent = child_view.get_parent();
 
     // we are done if they are the same
@@ -432,40 +429,7 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
 
     // if the current parent is not 0, we have to deparent
     if current_parent != 0 {
-
-        let parent_view = machine.get_object_view(current_parent);
-        let mut current_child = parent_view.get_child();
-
-        // i would try to generalize the logic, but as it turns out, you do completely
-        // different things
-        if current_child == child {
-            // if first child, set parent's new first child to child's sibling
-            parent_view.set_child(child_view.get_sibling());
-        } else {
-            // else, progress through children until child is found, then
-            // set previous child to child's sibling
-            let mut last_child = current_child;
-
-            loop {
-
-                last_child = current_child;
-                current_child = machine.get_object_view(current_child).get_sibling();
-
-                if current_child == child {
-                    break;
-                }
-
-                if current_child == 0 {
-                    panic!("object tree badly formed - object marked as having a parent it \
-                            does not");
-                }
-
-            }
-
-            let new_sibling = machine.get_object_view(current_child).get_sibling();
-            machine.get_object_view(last_child).set_sibling(new_sibling);
-
-        }
+        unparent_object(&mut child_view, machine);
     }
 
     // in the case of 0, this deparents
@@ -650,9 +614,8 @@ pub fn new_line(code: &mut OpCode, machine: &mut ZMachine) {
     println!("");
 }
 
-pub fn nop(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
-}
+//uh... do nothing!
+pub fn nop(code: &mut OpCode, machine: &mut ZMachine) {}
 
 pub fn or(code: &mut OpCode, machine: &mut ZMachine) {
     code.store = true;
@@ -665,11 +628,13 @@ pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    println!( "Quitting.");
+    process::exit(0);
 }
 
 pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    machine.call_stack.stack.pop();
+    //thats it
 }
 
 pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
@@ -837,7 +802,11 @@ pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    let obj = code.operands[0].get_value();
+    let mut view = machine.get_object_view(obj);
+    unparent_object(&mut view, machine);
+
 }
 
 pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
@@ -845,7 +814,10 @@ pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    machine.state = MachineState::Restarting;
+    code.read_bytes = 0;
+
 }
 
 // ret
@@ -1333,6 +1305,64 @@ pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
-pub fn verify(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+fn unparent_object( obj_view: &mut ObjectView, machine: &mut ZMachine ) {
+
+    let current_parent = obj_view.get_parent();
+
+    if current_parent == 0 {
+        return;
+    }
+
+    let parent_view = machine.get_object_view(current_parent);
+    let mut current_child = parent_view.get_child();
+
+    // i would try to generalize the logic, but as it turns out, you do completely
+    // different things
+    if current_child == obj_view.object_id {
+        // if first child, set parent's new first child to child's sibling
+        parent_view.set_child(obj_view.get_sibling());
+    } else {
+        // else, progress through children until child is found, then
+        // set previous child to child's sibling
+        let mut last_child = current_child;
+
+        loop {
+
+            last_child = current_child;
+            current_child = machine.get_object_view(current_child).get_sibling();
+
+            if current_child == obj_view.object_id {
+                break;
+            }
+
+            if current_child == 0 {
+                panic!("object tree badly formed - object marked as having a parent it \
+                        does not");
+            }
+
+        }
+
+        let new_sibling = machine.get_object_view(current_child).get_sibling();
+        machine.get_object_view(last_child).set_sibling(new_sibling);
+
+    }
+
 }
+
+//checksum always passes, for now
+//
+//this was used for piracy and fidelity reasons;
+//these days? not sure what it could really be used for
+//i don't know of any games that actually use it for a game purpose
+//
+//it would literally have to be a programming game or something, that
+//involved creating a checksum
+//
+//so, we aren't going to bother here. if the story file is tampered with
+//whatever, if it is tampered to the point of breaking, its going to crash
+//anyway
+pub fn verify(code: &mut OpCode, machine: &mut ZMachine) {
+    code.branch = true;
+    code.result = 1;
+}
+

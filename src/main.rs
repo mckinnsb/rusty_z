@@ -55,6 +55,10 @@ fn main() {
         let state = machine.state.clone();
         match state {
             MachineState::Running => machine.next_instruction(),
+            MachineState::Restarting => {
+                machine = ZMachine::new(data_ref.to_vec());
+                machine.next_instruction();
+            }
             MachineState::Stopped => break,
             MachineState::TakingInput { ref callback } => {
                 machine.wait_for_input(&mut handler, callback.clone())

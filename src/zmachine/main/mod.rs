@@ -23,6 +23,7 @@ use std::rc::*;
 #[derive(Clone)]
 pub enum MachineState {
     Stopped,
+    Restarting,
     Running,
     // input finished takes ownership of the string
     TakingInput { callback: Rc<Fn(String)> },

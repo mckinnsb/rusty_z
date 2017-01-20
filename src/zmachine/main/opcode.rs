@@ -235,7 +235,6 @@ impl OpCode {
             (&OpForm::Short, 1, 0x5) => instruction_set::inc,
             (&OpForm::Short, 1, 0x6) => instruction_set::dec,
             (&OpForm::Short, 1, 0x7) => instruction_set::print_addr,
-            (&OpForm::Short, 1, 0x8) => instruction_set::call_1s,
             (&OpForm::Short, 1, 0x9) => instruction_set::remove_obj,
             (&OpForm::Short, 1, 0xA) => instruction_set::print_obj,
             (&OpForm::Short, 1, 0xB) => instruction_set::ret,
