@@ -61,12 +61,10 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // move program counter
     // address is actually multiplied by a constant, depending on the version #
     // we just support 3 here, so it is always 2
-    let mut address = (code.operands[0].get_value() as u32 ) * 2;
+    let mut address = (code.operands[0].get_value() as u32) * 2;
 
-    //if 0 is given to call, we "return" false, and by return
-    //i mean the opcode then stores 0 at the value on branch
-    //so we fake the end of ret and return
-    //we also don't touch read bytes or anything like that at all
+    //println!("////////////// calling {:x}", address);
+
     // if 0 is given to call, we "return" false, and by return
     // i mean the opcode then stores 0 at the value on branch
     // so we fake the end of ret and return
@@ -226,9 +224,9 @@ pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
 //
 // it's not a "no-op", strictly speaking, but for our purposes it is.
 pub fn debug(code: &mut OpCode, machine: &mut ZMachine) {}
+
 // signed division, should halt interpreter on divide by zero ( the inform
 // compiler should guarantee that never happens )
-
 pub fn div(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
@@ -270,16 +268,15 @@ pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
 
-    let (object, property) = (code.operands[0].get_value(), 
-                              code.operands[1].get_value());
+    let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     let value = machine.get_object_view(object)
         .get_properties_table_view()
         .get_property(property as u8)
         .value;
 
-    //println!("object:{}\nproperty:{}\nvalue:{}", object, property, value);
-    //println!("****");
+    // println!("object:{}\nproperty:{}\nvalue:{}", object, property, value);
+    // println!("****");
 
     code.result = value;
 
@@ -289,21 +286,21 @@ pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
 
-    //we subtract one because the size byte itself is actually 1 below
-    //the address given.
+    // we subtract one because the size byte itself is actually 1 below
+    // the address given.
     //
-    //this is kind of confusing until you realize that the value coming
-    //into this operand is coming out of get_prop_addr
-    
+    // this is kind of confusing until you realize that the value coming
+    // into this operand is coming out of get_prop_addr
+
     let property_address = code.operands[0].get_value() - 1;
     let size_byte = machine.get_memory_view().read_at(property_address as u32);
-    //println!( "sizebyte:{:x}", size_byte );
+    // println!( "sizebyte:{:x}", size_byte );
 
     let ObjectPropertyInfo { size, .. } =
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
-    //println!( "prop address:{:x}", property_address );
-    //println!( "prop len:{}", size );
+    // println!( "prop address:{:x}", property_address );
+    // println!( "prop len:{}", size );
 
     code.result = size as u16;
 
@@ -339,27 +336,23 @@ pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
     let property_view = machine.get_object_view(object).get_properties_table_view();
 
-    let size_byte = match property {
-        0 => property_view.view.read_at_head(0),
-        _ => {
+    //this was not appropriately being done before
+    let size_byte = {
 
-            let info = property_view.get_property_info(property);
+        let info = property_view.get_property_info(property);
 
-            let addr = match info.addr {
-                Some(x) => x,
-                None => panic!("attempted to find the next property of a non existant property!"),
-            };
+        let addr = match info.addr {
+            Some(x) => x,
+            None => panic!("attempted to find the next property of a non existant property!"),
+        };
 
-            let next_addr = addr + info.size as u32;
-            property_view.view.read_at_head(next_addr)
+        let next_addr = addr + info.size as u32;
+        property_view.view.read_at_head(next_addr)
 
-        }
     };
 
     let ObjectPropertyInfo { id, .. } =
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
-
-    // println!("object:{}\nproperty:{}\nid:{}", object, property, id);
 
     code.result = id as u16;
 
@@ -367,16 +360,15 @@ pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
 pub fn get_sibling(code: &mut OpCode, machine: &mut ZMachine) {
 
-
     code.store = true;
     code.branch = true;
 
     let object = code.operands[0].get_value();
-    //println!( "getting sibling of:{}", object );
     code.result = machine.get_object_view(object).get_sibling();
-    //println!( "slibling is :{}", code.result );
+
+    // println!("slibling is {}", code.result);
     // done
-    
+
 }
 
 pub fn inc(code: &mut OpCode, machine: &mut ZMachine) {
@@ -397,7 +389,9 @@ pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {
     let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
 
     let mut current = machine.read_variable(variable as u8) as i16;
-    machine.write_variable_in_place(variable as u8, (current + 1) as u16);
+
+    current += 1;
+    machine.write_variable_in_place(variable as u8, current as u16);
 
     match current > value {
         false => code.result = 0,
@@ -422,73 +416,65 @@ pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {
 // you can do insert_obj 0, 1 to basically remove everything from a
 // bag, and insert_obj 1, 0 to basically remove an object from a bag
 // its more or less up to the author to decide what they want to use
-
 pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (child, parent) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    // println!( "child: {}, parent: {}", child, parent );
-    // println!( "address: {:x}, op_code:{}", machine.ip, code );
+    //child will never be 0, parent might be though
+    let child_view = machine.get_object_view(child);
+    let current_parent = child_view.get_parent();
 
-    if child != 0 {
+    // we are done if they are the same
+    if child_view.get_parent() == parent {
+        return;
+    }
 
-        let child_view = machine.get_object_view(child);
-        let current_parent = child_view.get_parent();
+    // if the current parent is not 0, we have to deparent
+    if current_parent != 0 {
 
-        //we are done if they are the same
-        if child_view.get_parent() == parent {
-            return;
-        }
+        let parent_view = machine.get_object_view(current_parent);
+        let mut current_child = parent_view.get_child();
 
-        //if the current parent is not 0, we have to deparent
-        if current_parent != 0 {
+        // i would try to generalize the logic, but as it turns out, you do completely
+        // different things
+        if current_child == child {
+            // if first child, set parent's new first child to child's sibling
+            parent_view.set_child(child_view.get_sibling());
+        } else {
+            // else, progress through children until child is found, then
+            // set previous child to child's sibling
+            let mut last_child = current_child;
 
-            let parent_view = machine.get_object_view(current_parent);
-            let mut current_child = parent_view.get_child();
+            loop {
 
-            //i would try to generalize the logic, but as it turns out, you do completely
-            //different things
-            if current_child == child {
-                //if first child, set parent's new first child to child's sibling
-                parent_view.set_child(child_view.get_sibling());
-            }
-            else {
-                //else, progress through children until child is found, then
-                //set previous child to child's sibling
-                let mut last_child = current_child;
+                last_child = current_child;
+                current_child = machine.get_object_view(current_child).get_sibling();
 
-                loop {
-
-                    last_child = current_child;
-                    current_child = machine.get_object_view(current_child).get_sibling();
-
-                    if current_child == child {
-                        break;
-                    }
-
-                    if current_child == 0 {
-                        panic!( "object tree badly formed - object marked as having a parent it does not");
-                    }
-
+                if current_child == child {
+                    break;
                 }
 
-                let new_sibling = machine.get_object_view(current_child).get_sibling();
-                machine.get_object_view(last_child).set_sibling(new_sibling);
+                if current_child == 0 {
+                    panic!("object tree badly formed - object marked as having a parent it \
+                            does not");
+                }
 
             }
+
+            let new_sibling = machine.get_object_view(current_child).get_sibling();
+            machine.get_object_view(last_child).set_sibling(new_sibling);
+
         }
-
-        // in the case of 0, this deparents
-        child_view.set_parent(parent);
-
     }
+
+    // in the case of 0, this deparents
+    child_view.set_parent(parent);
 
     if parent != 0 {
 
         let parent_view = machine.get_object_view(parent);
         let old_child = parent_view.get_child();
 
-        // in the case of 0, this empties
         parent_view.set_child(child);
 
         if child != 0 {
@@ -496,10 +482,10 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
             let child_view = machine.get_object_view(child);
             child_view.set_sibling(old_child);
         }
+
     }
 
 }
-
 
 // je is the only jump expression which can take 4 arguments
 // as a variable-encoded expression
@@ -560,7 +546,7 @@ pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {
 
     let child = machine.get_object_view(child);
     code.result = (child.get_parent() == parent) as u16;
-    //println!("result is:{}", code.result );
+    // println!("result is:{}", code.result );
 
     // done!
 
@@ -695,7 +681,7 @@ pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.read_bytes += string.encoded_length;
 
-    //all print functions use print, instead of println
+    // all print functions use print, instead of println
     print!("{}", string);
 
 }
@@ -736,11 +722,11 @@ pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
     // then is followed by the short name of the object
     let string = ZString::create(1, &view.view, &machine.get_abbreviations_view());
 
-    //we actually print instead of println here because
-    //objects can handle carriage returns themselves ( a ZString has a newline
-    //character )
-    
-    print!( "{}", string );
+    // we actually print instead of println here because
+    // objects can handle carriage returns themselves ( a ZString has a newline
+    // character )
+
+    print!("{}", string);
 
 }
 
@@ -785,12 +771,12 @@ pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
     let (object, property, value) =
         (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
 
-    //println!("************************************************");
-    //println!("WRITING object: {}", object);
-    //println!("property: {}", property);
-    //println!("value: {}", value);
-    //println!("****");
-//
+    // println!("************************************************");
+    // println!("WRITING object: {}", object);
+    // println!("property: {}", property);
+    // println!("value: {}", value);
+    // println!("****");
+    //
     machine.get_object_view(object).
         get_properties_table_view().
         //its virtually assured property is always a byte value
@@ -827,13 +813,14 @@ pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
-
 pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
+
 pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
@@ -882,8 +869,7 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
     // stored the address in-system ( not as part of asm )
     machine.ip = address;
 
-    //println!( "returning to:{:x} in ret", address );
-    //println!( "*****" );
+    //println!("returning to:{:x} in ret ********", address + offset);
 
     // we are done, machine handles store calls
 
@@ -895,6 +881,7 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
 // so we don't have to worry too much about modifying operands
 // to use ret ( 1-OP )
 pub fn ret_popped(code: &mut OpCode, machine: &mut ZMachine) {
+
     let value = match machine.call_stack.stack.pop() {
         Some(x) => x,
         None => panic!("stack underflow!"),
@@ -902,6 +889,7 @@ pub fn ret_popped(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.operands[0] = Operand::LargeConstant { value: value };
     ret(code, machine);
+
 }
 
 // return the value false
@@ -927,7 +915,7 @@ pub fn save(code: &mut OpCode, machine: &mut ZMachine) {
 // this sets a bit in the attributes table
 pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {
 
-    //println!("{}",code);
+    // println!("{}",code);
     let (object, attr) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     machine.get_object_view(object).set_attribute(attr);
@@ -993,9 +981,9 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
         let mut cursor = text_buffer as u32;
         let max_length = view.read_at(cursor);
 
-        //we also don't write over the max length,
-        //i believe that stays the same all game
-        
+        // we also don't write over the max length,
+        // i believe that stays the same all game
+
         cursor += 1;
 
         if input.len() as u8 > max_length {
@@ -1013,17 +1001,16 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
         let cleaned_input = cleaned_input.to_lowercase();
         let split = cleaned_input.split_whitespace();
 
-        //we use cursor because we had to increment the text buffer pos by 1
-        //split is no longer ours
-        let words = sread_write_to_text_buffer(&view, split, cursor );
+        // we use cursor because we had to increment the text buffer pos by 1
+        // split is no longer ours
+        let words = sread_write_to_text_buffer(&view, split, cursor);
 
-        //if the parse buffer is 0, that means we don't parse at all
+        // if the parse buffer is 0, that means we don't parse at all
         if parse_buffer == 0 {
-            //println!( "******not parsing!*******" );
             return;
-        } 
+        }
 
-        //we pass version so the word can be correctly encoded
+        // we pass version so the word can be correctly encoded
         sread_write_to_parse_buffer(&view, &words, &dictionary_view, parse_buffer, version);
 
     });
@@ -1032,15 +1019,17 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
-//private helper function for sread, takes a cleaned, split input
-//and writes it to the text buffer at the position indicated,
-//and returns a Vec of words in a list ( for use in the next step )
+// private helper function for sread, takes a cleaned, split input
+// and writes it to the text buffer at the position indicated,
+// and returns a Vec of words in a list ( for use in the next step )
 //
-//this function takes ownership of split ( and technically text buffer, but thats Copy )
+// this function takes ownership of split ( and technically text buffer, but thats Copy )
+fn sread_write_to_text_buffer(view: &MemoryView,
+                              mut split: SplitWhitespace,
+                              mut text_buffer: u32)
+                              -> Vec<String> {
 
-fn sread_write_to_text_buffer( view: &MemoryView, mut split: SplitWhitespace, mut text_buffer: u32 ) -> Vec<String> {
-
-    //8 words is probably a reasonable upper bound
+    // 8 words is probably a reasonable upper bound
     let mut words = Vec::with_capacity(8);
 
     while let Some(word) = split.next() {
@@ -1051,7 +1040,7 @@ fn sread_write_to_text_buffer( view: &MemoryView, mut split: SplitWhitespace, mu
         }
 
         view.write_at(text_buffer, ' ' as u8);
-        text_buffer +=1;
+        text_buffer += 1;
 
         words.push(String::from(word));
 
@@ -1061,18 +1050,17 @@ fn sread_write_to_text_buffer( view: &MemoryView, mut split: SplitWhitespace, mu
 
 }
 
-//private helper function for sread, takes a vec of words, looks them up in the dictionary,
-//then writes 
+// private helper function for sread, takes a vec of words, looks them up in the dictionary,
+// then writes
 //
-//1) address in dictionary in first two bytes( 0 if nothing ), 
-//2) # of characters in second byte 
-//3) position in string of first letter of the word
-
-fn sread_write_to_parse_buffer( view: &MemoryView, 
-                                words: &Vec<String>, 
-                                dictionary_view: &MemoryView, 
-                                parse_buffer: u16, 
-                                version: u8 ) {
+// 1) address in dictionary in first two bytes( 0 if nothing ),
+// 2) # of characters in second byte
+// 3) position in string of first letter of the word
+fn sread_write_to_parse_buffer(view: &MemoryView,
+                               words: &Vec<String>,
+                               dictionary_view: &MemoryView,
+                               parse_buffer: u16,
+                               version: u8) {
 
     let mut cursor = parse_buffer as u32;
 
@@ -1083,19 +1071,19 @@ fn sread_write_to_parse_buffer( view: &MemoryView,
     // and the max count
     let token_count = cmp::min(max_tokens, words.len() as u8) as usize;
 
-    //we don't write to this
+    // we don't write to this
     cursor += 1;
 
-    //write the word(token) count in the first byte of the parse buffer
+    // write the word(token) count in the first byte of the parse buffer
     view.write_at(cursor, token_count as u8);
-    
-    //we write to this
+
+    // we write to this
     cursor += 1;
 
-    // we need a mutable letter cursor for this double loop, 
+    // we need a mutable letter cursor for this double loop,
     // which indicates the start of the word in the sentence
     // rather than the place in memory
-    
+
     let mut letter_cursor = 1;
 
     for word in words[0..token_count].iter() {
@@ -1105,14 +1093,13 @@ fn sread_write_to_parse_buffer( view: &MemoryView,
 
         // write the address of the abbreviations table from the dictionary
 
-        //println!( "writing to: {:x}", cursor );
+        // println!( "writing to: {:x}", cursor );
 
         match address {
             // this might look dangerous, but abbreviation strings
             // actually are in the lower 128k of memory ( after the header )
             // i think the maximum size allowed is 64k - 64 bytes ( the size
             // of the header )
-            
             Some(x) => view.write_u16_at(cursor, x as u16),
             None => view.write_u16_at(cursor, 0),
         }
@@ -1130,10 +1117,9 @@ fn sread_write_to_parse_buffer( view: &MemoryView,
 
 }
 
-//private helper function for sread, finds words in the dictionary
-//i believe this is the only op - or part of the code - that uses it
-
-fn sread_find_word_in_dictionary( string : &ZWord, dictionary: &MemoryView ) -> Option<u32> {
+// private helper function for sread, finds words in the dictionary
+// i believe this is the only op - or part of the code - that uses it
+fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Option<u32> {
 
     // so interestingly enough, the dictionary starts with a # and a list of
     // codes which correspond to keyboard input.
@@ -1148,8 +1134,8 @@ fn sread_find_word_in_dictionary( string : &ZWord, dictionary: &MemoryView ) -> 
     // so the total offset is four bytes + num_input_codes
     let dictionary_header_offset = num_input_codes + 4;
 
-    //and we more or less have to compute this each time, since its actually legal
-    //to alter the dictionary
+    // and we more or less have to compute this each time, since its actually legal
+    // to alter the dictionary
 
     // binary search
     // it ends up working because all characters are padded with the same
@@ -1158,31 +1144,30 @@ fn sread_find_word_in_dictionary( string : &ZWord, dictionary: &MemoryView ) -> 
     //
     // we basically take the first 4 or 6 bytes of the word and turn
     // it into a number, and that's the index of the abbreviations table
-    
+
     let mut address = None;
     let mut lower = 0;
     let mut upper = dictionary_entries - 1;
     let mut pointer = 0;
-    
+
     while lower <= upper {
 
         pointer = lower + (upper - lower) / 2;
         let offset = dictionary_header_offset + pointer * entry_length;
         let mut found: bool = false;
 
-        //we need to both pull the encoded value out of the enum,
-        //and the entry from the table itself, because if there
-        //is no match, we have to change the upper/lower bounds
-        //based on comparing the two values
+        // we need to both pull the encoded value out of the enum,
+        // and the entry from the table itself, because if there
+        // is no match, we have to change the upper/lower bounds
+        // based on comparing the two values
         //
-        //note that in the future these will probably need to be vecs,
-        //because the match arms wont match types when v4 is implemented
-        
+        // note that in the future these will probably need to be vecs,
+        // because the match arms wont match types when v4 is implemented
+
         let (mut encoded_string, mut dictionary_entry) = match string {
 
-            //we can "move" encoded out of zword here, because it has the copy trait
-            //as an array of u8s
-            
+            // we can "move" encoded out of zword here, because it has the copy trait
+            // as an array of u8s
             &ZWord::V3 { encoded, .. } => {
 
                 let encoded_entry = [dictionary.read_at_head(offset),
@@ -1200,7 +1185,7 @@ fn sread_find_word_in_dictionary( string : &ZWord, dictionary: &MemoryView ) -> 
         };
 
         if found {
-            //println!("found the lookup!");
+            // println!("found the lookup!");
             address = Some(dictionary.pointer + offset);
             break;
         }
@@ -1315,13 +1300,13 @@ pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (object, attribute) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    //println!( "object:{}", object);
-    //println!( "attribute:{}", attribute);
+    // println!( "object:{}", object);
+    // println!( "attribute:{}", attribute);
 
     code.result = machine.get_object_view(object)
         .has_attribute(attribute) as u16;
 
-    //println!( "result:{}", code.result);
+    // println!( "result:{}", code.result);
 
 }
 

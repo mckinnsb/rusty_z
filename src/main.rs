@@ -46,10 +46,9 @@ fn main() {
     let mut handler = input_handler();
     let mut machine = ZMachine::new(data_buffer);
 
-    /*
-    let status = machine.header.get_status();
-    display(&status);
-    */
+    // let status = machine.header.get_status();
+    // display(&status);
+    //
 
     // this might really need to change
     loop {

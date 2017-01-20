@@ -62,7 +62,6 @@ pub enum Operand {
 }
 
 impl fmt::Display for Operand {
-
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
         let formatted = match self {
@@ -167,7 +166,6 @@ pub struct OpCode {
 }
 
 impl OpCode {
-
     pub fn assign_instruction(code: &mut OpCode) {
 
         // the form is an object that does not copy, so we need a reference
@@ -399,7 +397,6 @@ impl OpCode {
     // it's a two-step opcode process, and one of the reasons why its a VM )
     //
     // this expects a "shell" opcode, which it modifies
-
     fn form_long_opcode(code: &mut OpCode, id: u8) {
 
         // we include the header byte now
@@ -563,7 +560,6 @@ impl OpCode {
                                 None => panic!("stack underflow!"),
                             }
                         }
-
                         // 1 to 15, its a local
                         i @ 0x01...0x0f => *value = call_stack.get_local_variable(i),
                         // 16 to 255, it's a global variable.

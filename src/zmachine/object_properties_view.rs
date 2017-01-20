@@ -28,6 +28,7 @@ pub struct ObjectPropertiesView {
 }
 
 impl ObjectPropertiesView {
+
     pub fn create(object_id: u16,
                   pointer_position: u32,
                   defaults_view: &MemoryView,
@@ -86,6 +87,8 @@ impl ObjectPropertiesView {
             size: 0,
         };
 
+        let find_first = property_index == 0;
+
         // could use a while, but thats sort of not using destructuring
         loop {
 
@@ -98,13 +101,8 @@ impl ObjectPropertiesView {
 
             let found_info = ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
-            //println!("size: {}", found_info.size);
-            //println!("id: {}", found_info.id);
-
-            if found_info.id == info.id {
+            if find_first || found_info.id == info.id {
                 info.size = found_info.size;
-                //skip the size byte here
-                //just the address of the start of the property
                 info.addr = Some(pointer_cursor + 1);
                 break;
             }
@@ -131,12 +129,12 @@ impl ObjectPropertiesView {
 
         let value = match info.addr {
             None => {
-                //println!( "reading default for:{}", property_index );
+                // println!( "reading default for:{}", property_index );
                 self.get_property_default(property_index)
             }
             Some(addr) => {
-                //println!( "found addr: {}", addr );
-                //println!( "+ pointer: {}", self.get_property_addr_from_info(info));
+                // println!( "found addr: {}", addr );
+                // println!( "+ pointer: {}", self.get_property_addr_from_info(info));
                 match info.size {
                     1 => self.view.read_at_head(addr) as u16,
                     2 => self.view.read_u16_at_head(addr),

@@ -314,7 +314,7 @@ impl ZMachine {
         let mut op_code = OpCode::form_opcode(word);
 
         op_code.ip = self.ip;
-        //println!( "ip: {:x}", op_code.ip );
+        // println!( "ip: {:x}", op_code.ip );
 
         {
             let code_ref = &mut op_code;
@@ -332,7 +332,7 @@ impl ZMachine {
             op_code.read_variables(view, globals, stack);
         }
 
-        //println!( "{:x}", op_code.ip );
+        //println!("{:x}", op_code.ip);
 
         self.execute_instruction(&mut op_code);
 
@@ -402,6 +402,7 @@ impl ZMachine {
 
             let offset: (bool, i16) = match one_bit {
                 // we have to mask against the control bits, here
+                //
                 true => {
                     // this should still be a positive # since we do not prop the bytes
                     // it can be from 0 to 63
@@ -412,13 +413,16 @@ impl ZMachine {
                     let mut fourteen_bit = view.read_u16_at_head(op_code.read_bytes) &
                                            0b0011111111111111;
 
+                    //println!("fourteen bit before mask:{}", fourteen_bit);
+
                     if fourteen_bit & 0x0200 != 0 {
                         // propagate the sign
-                        fourteen_bit = fourteen_bit | (1 << 15);
-                        fourteen_bit = fourteen_bit | (1 << 14);
+                        fourteen_bit |= (1 << 15);
+                        fourteen_bit |= (1 << 14);
                     }
 
-                    println!("fourteen bit:{}", fourteen_bit);
+                    //println!("fourteen bit:{}", fourteen_bit);
+
                     (false, fourteen_bit as i16)
 
                 }
@@ -444,13 +448,13 @@ impl ZMachine {
                 // us and at the end, we should be in the right spot
                 (true, 0) => {
                     let mut rfalse = OpCode::form_rfalse();
-                    //println!( "returning from branch false" );
+                    //println!("returning from branch false");
                     self.execute_instruction(&mut rfalse);
                 }
 
                 (true, 1) => {
                     let mut rtrue = OpCode::form_rtrue();
-                    //println!( "returning from branch true" );
+                    //println!("returning from branch true");
                     self.execute_instruction(&mut rtrue);
                 }
 
@@ -460,11 +464,16 @@ impl ZMachine {
                 // not entirely sure why they felt the -2 was necessary?
                 // maybe it makes sense in inform syntax
                 (_, x) => {
+
+                    //println!("read at:{:x}", view.pointer + op_code.read_bytes);
+                    //println!("diff was:{}", x);
+
                     let difference = (op_code.read_bytes as i16) + x + (branch_byte_offset as i16) -
                                      2;
 
                     self.ip = ((self.ip as i32) + (difference as i32)) as u32;
-                    //println!( "branching to :{:x}", self.ip );
+
+                    //println!("branching to :{:x}", self.ip);
                 }
 
             }
@@ -473,7 +482,7 @@ impl ZMachine {
 
             let difference = op_code.read_bytes + branch_byte_offset;
             self.ip += difference;
-            //println!( "branch failed, moving to :{:x}", self.ip );
+            //print!("branch failed, moving to : ");
 
         }
     }
@@ -482,7 +491,9 @@ impl ZMachine {
     // or may not
     pub fn read_variable(&self, address: u8) -> u16 {
         match address {
-            // 0, its the stack, pop it and return
+            // 0, its the stack, read it and return
+            // in this case, we are not popping the stack because read_variable
+            // on zmachine does not "process" the stack in the way opcode does
             0 => self.call_stack.stack[self.call_stack.stack.len() - 1],
             // 1 to 15, its a local
             i @ 0x01...0x0f => self.call_stack.get_local_variable(i),
