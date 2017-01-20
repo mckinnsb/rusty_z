@@ -1,3 +1,4 @@
+extern crate rand;
 use super::super::object_properties_view::*;
 use super::super::zstring::*;
 use super::super::memory_view::MemoryView;
@@ -809,7 +810,30 @@ pub fn push(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    code.store = true;
+
+    let (range, seed) = match code.operands[0].get_value() {
+        x if x < 0 => (None, Some(x)),
+        x @ _ => (Some(x), None),
+    };
+
+    //the function will only seed or return a random number, not both
+    if let Some(seed_value) = seed {
+        //if its a seed, the result is 0
+        //and we do not generate a return value
+        
+        machine.random_generator.seed(seed_value);
+        code.result = 0;
+        return;
+    };
+
+    if let Some(range_value) = range {
+        let random = machine.random_generator.next(range_value);
+        code.result = random;
+        return;
+    };
+
 }
 
 pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {

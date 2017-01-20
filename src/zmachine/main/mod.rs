@@ -1,6 +1,10 @@
+extern crate rand;
+
 pub mod opcode;
 pub mod instruction_set;
 pub mod input_handler;
+
+use self::rand::*;
 
 // represents the current zmachine
 use super::header::*;
@@ -13,6 +17,66 @@ use super::object_view::*;
 use std::cell::RefCell;
 use std::io::*;
 use std::rc::*;
+
+// once this is a FnMut or FnOnce, I don't think we
+// can clone it anymore.
+#[derive(Clone)]
+pub enum MachineState {
+    Stopped,
+    Running,
+    // input finished takes ownership of the string
+    TakingInput { callback: Rc<Fn(String)> },
+}
+
+pub struct RandomGen<T> {
+    generator: T,
+    pub randoms_predictable: bool,
+    pub randoms_predictable_next: u16,
+    pub random_seed: u16,
+}
+
+impl<T: rand::SeedableRng<[u32;4]>> RandomGen<T>{
+
+    pub fn seed( &mut self, value: u16 ) {
+
+        self.random_seed = value;
+
+        if self.randoms_predictable {
+            self.randoms_predictable_next = 0;
+        }
+        else {
+            let val = value as u32;
+            let seed = [val, val, val, val];
+
+            self.generator = T::from_seed(seed);
+        }
+
+    }
+
+    pub fn next( &mut self, range: u16 ) -> u16 {
+
+        if self.randoms_predictable {
+
+            let next = self.randoms_predictable_next;
+
+            self.randoms_predictable_next += 1;
+
+            if self.randoms_predictable_next == self.random_seed {
+                self.randoms_predictable_next = 0;
+            }
+
+            next
+
+        }
+        else {
+            //bits will be lost, but its random
+            self.generator.gen_range(0, range)
+        }
+
+    }
+
+
+}
 
 // wraps a Vec with some other information
 pub struct Stack {
@@ -82,15 +146,6 @@ impl Stack {
     }
 }
 
-// once this is a FnMut or FnOnce, I don't think we
-// can clone it anymore.
-#[derive(Clone)]
-pub enum MachineState {
-    Stopped,
-    Running,
-    // input finished takes ownership of the string
-    TakingInput { callback: Rc<Fn(String)> },
-}
 
 pub struct ZMachine {
     // the call stack, which are 2-byte words (u16)
@@ -138,11 +193,16 @@ pub struct ZMachine {
     // note that this is one of the very few 'u32' things here
     ip: u32,
 
+    //we use XorShiftRng because there are no real security concerns here
+    pub random_generator: RandomGen<XorShiftRng>,
+
     // are we still running? keep processing.
     pub state: MachineState,
 }
 
+
 impl ZMachine {
+
     pub fn new(data: Vec<u8>) -> ZMachine {
 
         // we have to create an immutably reference
@@ -188,6 +248,12 @@ impl ZMachine {
             header: header,
             ip: pc_start,
             memory: memory,
+            random_generator: RandomGen {
+                generator: XorShiftRng::from_seed([1,2,3,4]),
+                random_seed: 0,
+                randoms_predictable: false,
+                randoms_predictable_next: 0,
+            },
             state: MachineState::Running,
         }
 

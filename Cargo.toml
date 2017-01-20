@@ -4,6 +4,9 @@ name = "rusty_z"
 version = "0.0.1"
 authors = [ "Stew <mckinnsb@gmail.com>" ]
 
+[dependencies]
+rand = "0.3.15"
+
 [dependencies.webplatform]
 git = "https://github.com/tcr/rust-webplatform"
  
