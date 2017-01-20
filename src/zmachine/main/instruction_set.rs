@@ -63,7 +63,7 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // we just support 3 here, so it is always 2
     let mut address = (code.operands[0].get_value() as u32) * 2;
 
-    //println!("////////////// calling {:x}", address);
+    // println!("////////////// calling {:x}", address);
 
     // if 0 is given to call, we "return" false, and by return
     // i mean the opcode then stores 0 at the value on branch
@@ -336,7 +336,7 @@ pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
     let property_view = machine.get_object_view(object).get_properties_table_view();
 
-    //this was not appropriately being done before
+    // this was not appropriately being done before
     let size_byte = {
 
         let info = property_view.get_property_info(property);
@@ -420,7 +420,7 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (child, parent) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    //child will never be 0, parent might be though
+    // child will never be 0, parent might be though
     let child_view = machine.get_object_view(child);
     let current_parent = child_view.get_parent();
 
@@ -869,7 +869,7 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
     // stored the address in-system ( not as part of asm )
     machine.ip = address;
 
-    //println!("returning to:{:x} in ret ********", address + offset);
+    // println!("returning to:{:x} in ret ********", address + offset);
 
     // we are done, machine handles store calls
 

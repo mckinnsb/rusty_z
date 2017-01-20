@@ -28,7 +28,6 @@ pub struct ObjectPropertiesView {
 }
 
 impl ObjectPropertiesView {
-
     pub fn create(object_id: u16,
                   pointer_position: u32,
                   defaults_view: &MemoryView,
