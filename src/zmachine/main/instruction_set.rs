@@ -5,6 +5,7 @@ use super::super::memory_view::MemoryView;
 use super::super::object_view::ObjectView;
 use super::opcode::*;
 use super::ZMachine;
+use super::super::header::*;
 use super::MachineState;
 use super::Stack;
 
@@ -661,7 +662,7 @@ pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {
 
     let string = ZString::create(addr, &view, &abbreviations_view);
 
-    print!("{}", string);
+    machine.print_to_main(&format!("{}",string));
 
 }
 
@@ -671,7 +672,7 @@ pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {
     //
     // this is similar to print_obj in that we do not println!
     match ZString::decode_zscii(code.operands[0].get_value()) {
-        Some(x) => print!("{}", x),
+        Some(x) => machine.print_to_main(&char::to_string(&x)),
         None => {}
     }
 
@@ -691,7 +692,7 @@ pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
     // objects can handle carriage returns themselves ( a ZString has a newline
     // character )
 
-    print!("{}", string);
+    machine.print_to_main(&format!("{}", string));
 
 }
 
@@ -711,14 +712,13 @@ pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
     let abbreviations_view = machine.get_abbreviations_view();
     let string = ZString::create(full_addr, &view, &abbreviations_view);
 
-    print!("{}", string);
+    machine.print_to_main(&format!("{}", string));
 
 }
 
 pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {
     let num = (code.operands[0].get_value());
-    print!("{}", num as i16);
-
+    machine.print_to_main(&format!("{}", num as i16));
 }
 
 // there are a lot of "macro commands" in the z-instruction set,
@@ -926,8 +926,54 @@ pub fn sound_effect(code: &mut OpCode, machine: &mut ZMachine) {
     unimplemented!();
 }
 
+// this is only for version 1-3
+//
+// in versions 4+ the game itself is responsible for this information,
+// and interfaces actually become more complex with additional windows
+
+// The below code will only appear in version 3, but it will be used by read regardless
+// in 1-3.
+//
+// (In Version 3 only.) Display and update the status line now (don't wait until 
+// the next keyboard input).(In theory this opcode is illegal in later Versions 
+// but an interpreter should treat it as nop, because Version 5 Release 23 of 
+// 'Wishbringer' contains this opcode by accident.)
+
+// In Versions 1 to 3, a status line should be printed by the interpreter, as follows. In Version
+// 3, it must set bit 4 of 'Flags 1' in the header if it is unable to produce a status line.
+//
 pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+
+    // The short name of the object whose number is in the first global variable should be printed
+    // on the left hand side of the line.
+    
+    //we can match against version 3 by also matching against the header flags, which 
+    //will let us unwrap some necessary info
+
+    if let &HeaderFlags::V1{ flags: HeaderFlagsV1{ ref status_line, .. } } = &machine.header.flags {
+
+        let globals = machine.get_global_variables_view();
+
+        let score_object = globals.read_global(0);
+        let first_param = globals.read_global(1);
+        let second_param = globals.read_global(2);
+
+        let view = machine.get_object_view(score_object).get_properties_table_view();
+        // the string is offset by one because properties starts with the size byte,
+        // then is followed by the short name of the object
+        let score_name = ZString::create(1, &view.view, &machine.get_abbreviations_view());
+
+        let out = match (status_line, first_param > 12 ) {
+            (&StatusLineType::Hours, false) => format!( "Time: {}:{} AM", first_param, second_param ),
+            (&StatusLineType::Hours, true) => format!( "Time: {}:{} PM", first_param, second_param ),
+            (&StatusLineType::Score, _) => format!( "Score: {} Turns: {}", first_param, second_param ),
+        };
+
+        machine.print_to_header(&format!("{}",score_name), &out);
+
+    }
+
+    
 }
 
 pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {
@@ -936,6 +982,7 @@ pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {
 
 pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
+    show_status(code, machine);
     io::stdout().flush();
 
     let (text_buffer, parse_buffer) = (code.operands[0].get_value(), code.operands[1].get_value());

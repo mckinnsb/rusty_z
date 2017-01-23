@@ -1,6 +1,3 @@
-#[cfg(target_os="emscripten")]
-extern crate webplatform;
-
 extern crate rusty_z;
 
 use std::io::*;
@@ -45,10 +42,7 @@ fn main() {
 
     let mut handler = input_handler();
     let mut machine = ZMachine::new(data_buffer);
-
-    // let status = machine.header.get_status();
-    // display(&status);
-    //
+    machine.clear();
 
     // this might really need to change
     loop {
@@ -72,22 +66,6 @@ fn main() {
 
 fn input_handler() -> InputHandler<std::io::Stdin> {
     let reader = std::io::stdin();
-
     InputHandler { reader: reader }
 }
 
-#[cfg(target_os="emscripten")]
-fn display(text: &str) {
-    let document = webplatform::init();
-    let content = document.element_query("section#content");
-
-    match content {
-        Some(_) => content.unwrap().html_set(text),
-        None => println!("Couldn't find specfied element!"),
-    }
-}
-
-#[cfg(not(target_os="emscripten"))]
-fn display(text: &str) {
-    println!("{}", text);
-}

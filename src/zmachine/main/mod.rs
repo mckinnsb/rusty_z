@@ -1,5 +1,14 @@
 extern crate rand;
 
+//how we communicate to the browser/terminal
+#[cfg(target_os="emscripten")]
+extern crate webplatform;
+
+#[cfg(not(target_os="emscripten"))]
+extern crate termion;
+#[cfg(not(target_os="emscripten"))]
+use self::termion::{clear, color, cursor, style};
+
 pub mod opcode;
 pub mod instruction_set;
 pub mod input_handler;
@@ -17,6 +26,7 @@ use super::object_view::*;
 use std::cell::RefCell;
 use std::io::*;
 use std::rc::*;
+
 
 // once this is a FnMut or FnOnce, I don't think we
 // can clone it anymore.
@@ -204,6 +214,7 @@ pub struct ZMachine {
 
 impl ZMachine {
 
+    //creates a new zmachine from the data given
     pub fn new(data: Vec<u8>) -> ZMachine {
 
         // we have to create an immutably reference
@@ -258,6 +269,52 @@ impl ZMachine {
             state: MachineState::Running,
         }
 
+    }
+
+    #[cfg(not(target_os="emscripten"))]
+    pub fn clear( &self ) {
+        println!( "{}", clear::All );
+    }
+
+    #[cfg(target_os="emscripten")]
+    pub fn clear( &self ) { }
+
+    //actually executes the instruction
+    fn execute_instruction(&mut self, op_code: &mut OpCode) {
+
+        op_code.execute(self);
+
+        // technically, store and branch cannot happen at the same time
+        // i will not make any enforcement here because the zmachine makes no such
+        // requirement of an interpreter, but given how the opcodes are defined,
+        // that never happens.
+
+        if op_code.store {
+
+            // we have to make a new view, here,
+            // because we could have changed the pointer
+            // after execute
+
+            let view = self.get_frame_view();
+            let destination = view.read_at_head(op_code.read_bytes);
+            self.store_variable(destination, op_code.result);
+            op_code.read_bytes += 1
+
+        }
+
+        // if the op code branched or branches,
+        // we rely on the op to set the ip,
+        // otherwise we just increment it
+
+        match op_code.branch {
+            true => {
+                self.handle_branch(op_code);
+            }
+            false => {
+                // println!("code does not branch");
+                self.ip += op_code.read_bytes;
+            }
+        }
     }
 
     pub fn get_version(&self) -> u8 {
@@ -363,83 +420,6 @@ impl ZMachine {
             related_obj_length: 1,
         }
 
-    }
-
-    pub fn next_instruction(&mut self) {
-
-        // a non-mutable memory view,
-        // reads from the same memory as zmachine
-        let view = self.get_frame_view();
-        let globals = self.get_global_variables_view();
-
-        // the top two bytes of the instruction
-        // will give all of the information needed for the instruction;
-        //
-        // note that not all instructions use the top two bytes
-
-        let word = view.peek_at_instruction();
-        let mut op_code = OpCode::form_opcode(word);
-
-        op_code.ip = self.ip;
-        // println!( "ip: {:x}", op_code.ip );
-
-        {
-            let code_ref = &mut op_code;
-            OpCode::assign_instruction(code_ref);
-        }
-
-        // we get a mutable reference to the call stack
-        // because variables can augment them
-        //
-        // we do this in its own scope to drop the mutable
-        // reference after we are done
-        {
-            let stack = &mut self.call_stack;
-            // have the view.
-            op_code.read_variables(view, globals, stack);
-        }
-
-        //println!("{:x}", op_code.ip);
-
-        self.execute_instruction(&mut op_code);
-
-    }
-
-    fn execute_instruction(&mut self, op_code: &mut OpCode) {
-
-        op_code.execute(self);
-
-        // technically, store and branch cannot happen at the same time
-        // i will not make any enforcement here because the zmachine makes no such
-        // requirement of an interpreter, but given how the opcodes are defined,
-        // that never happens.
-
-        if op_code.store {
-
-            // we have to make a new view, here,
-            // because we could have changed the pointer
-            // after execute
-
-            let view = self.get_frame_view();
-            let destination = view.read_at_head(op_code.read_bytes);
-            self.store_variable(destination, op_code.result);
-            op_code.read_bytes += 1
-
-        }
-
-        // if the op code branched or branches,
-        // we rely on the op to set the ip,
-        // otherwise we just increment it
-
-        match op_code.branch {
-            true => {
-                self.handle_branch(op_code);
-            }
-            false => {
-                // println!("code does not branch");
-                self.ip += op_code.read_bytes;
-            }
-        }
     }
 
     // handle a branch opcode - this happens after instructions are executed
@@ -555,6 +535,103 @@ impl ZMachine {
             //print!("branch failed, moving to : ");
 
         }
+    }
+
+    //grabs the next instruction and executes it
+    pub fn next_instruction(&mut self) {
+
+        // a non-mutable memory view,
+        // reads from the same memory as zmachine
+        let view = self.get_frame_view();
+        let globals = self.get_global_variables_view();
+
+        // the top two bytes of the instruction
+        // will give all of the information needed for the instruction;
+        //
+        // note that not all instructions use the top two bytes
+
+        let word = view.peek_at_instruction();
+        let mut op_code = OpCode::form_opcode(word);
+
+        op_code.ip = self.ip;
+        // println!( "ip: {:x}", op_code.ip );
+
+        {
+            let code_ref = &mut op_code;
+            OpCode::assign_instruction(code_ref);
+        }
+
+        // we get a mutable reference to the call stack
+        // because variables can augment them
+        //
+        // we do this in its own scope to drop the mutable
+        // reference after we are done
+        {
+            let stack = &mut self.call_stack;
+            // have the view.
+            op_code.read_variables(view, globals, stack);
+        }
+
+        //println!("{:x}", op_code.ip);
+
+        self.execute_instruction(&mut op_code);
+
+    }
+
+    //print to main section , js
+    #[cfg(target_os="emscripten")]
+    pub fn print_to_main( &self, string: &str ) {
+        print!( "{}", string );
+    }
+
+    //print to header , js
+    #[cfg(target_os="emscripten")]
+    pub fn print_to_header( &self, left_side: &str, right_side: &str ) {
+        print!( "{} {}", left_side, right_side );
+    }
+
+    //print to main section, desktop
+    #[cfg(not(target_os="emscripten"))]
+    pub fn print_to_main( &self, string: &str ) {
+        print!( "{}", string );
+    }
+    
+    //print to header( usually, status line ), desktop
+    //
+    //not sure if these arguments are the best right now,
+    //also, pretty sure this is only used by version 3 - in version
+    //4 + i think this is a sep. window, desktop
+    #[cfg(not(target_os="emscripten"))]
+    pub fn print_to_header( &self, left_side: &str, right_side: &str ) {
+
+        //terminals start at 1,1 so, keep that in mind
+        //this could panic... but if it can't get the terminal size,
+        //there's a good reason to
+        let (x,y) = termion::terminal_size().unwrap();
+
+        let top_left = cursor::Goto(1,1);
+        //padding is 4 chars
+        let margin_padding = "    ";
+        let center_size = (x as usize) - left_side.len() - right_side.len() - 4*2;
+        let center_padding : String = (0..center_size).into_iter().map( |_| " " ).collect();
+        let offset_position = x - (right_side.len() as u16) - 4;
+        let bottom = cursor::Goto(2, y);
+
+        let header = format!( "{}{}{}{}{}{}{}{}{}{}{}{}", cursor::Goto(1,1),
+                                                          color::Bg(color::LightWhite),
+                                                          color::Fg(color::Black),
+                                                          clear::CurrentLine,
+                                                          top_left,
+                                                          margin_padding,
+                                                          left_side,
+                                                          center_padding,
+                                                          right_side,
+                                                          margin_padding,
+                                                          style::Reset,
+                                                          bottom );
+
+        print!( "{}", header );
+
     }
 
     // this JUST reads a variable, but does not modify the stack in any way

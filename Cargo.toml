@@ -10,3 +10,5 @@ rand = "0.3.15"
 [dependencies.webplatform]
 git = "https://github.com/tcr/rust-webplatform"
  
+[target.'cfg(not(target_os="emscripten"))'.dependencies]
+termion = "1.1.4"
