@@ -146,4 +146,16 @@ impl MemoryView {
     pub fn write_u16_at_head(&self, offset: u32, value: u16) {
         self.write_u16_at(self.pointer + offset, value);
     }
+
+    pub fn write_u32_at(&self, address: u32, value: u32) {
+        let upper_half = (value >> 16 & 0xFFFF) as u16;
+        let lower_half = (value & 0xFFFF) as u16;
+
+        self.write_u16_at(address, upper_half);
+        self.write_u16_at(address + 2, lower_half);
+    }
+
+    pub fn write_u32_at_head(&self, offset: u32, value: u32) {
+        self.write_u32_at(self.pointer + offset, value);
+    }
 }

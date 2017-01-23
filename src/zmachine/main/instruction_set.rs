@@ -172,7 +172,8 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
 
 // this clears a bit in the attributes table
 pub fn clear_attr(code: &mut OpCode, machine: &mut ZMachine) {
-    let (object, attr) = (code.operands[0].get_value(), code.operands[1].get_value());
+    let (object, attr) = (code.operands[0].get_value(), 
+                          code.operands[1].get_value());
 
     machine.get_object_view(object).unset_attribute(attr);
     // done
@@ -419,6 +420,7 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (child, parent) = (code.operands[0].get_value(), code.operands[1].get_value());
 
+    // println!( "inserting:{} into:{}", child, parent );
     // child will never be 0, parent might be though
     let mut child_view = machine.get_object_view(child);
     let current_parent = child_view.get_parent();
@@ -508,6 +510,8 @@ pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {
     code.branch = true;
 
     let (child, parent) = (code.operands[0].get_value(), code.operands[1].get_value());
+
+    //println!( "checking for:{} in:{}", child, parent );
 
     let child = machine.get_object_view(child);
     code.result = (child.get_parent() == parent) as u16;
