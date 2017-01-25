@@ -1,24 +1,20 @@
-extern crate rand;
+pub mod opcode;
+pub mod instruction_set;
+pub mod input_handler;
 
-//how we communicate to the browser/terminal
-#[cfg(target_os="emscripten")]
-extern crate webplatform;
+extern crate rand;
+use self::rand::*;
 
 #[cfg(not(target_os="emscripten"))]
 extern crate termion;
 #[cfg(not(target_os="emscripten"))]
 use self::termion::{clear, color, cursor, style};
 
-pub mod opcode;
-pub mod instruction_set;
-pub mod input_handler;
-
-use self::rand::*;
+use self::opcode::*;
+use self::input_handler::*;
 
 // represents the current zmachine
 use super::header::*;
-use self::opcode::*;
-use self::input_handler::*;
 use super::memory_view::*;
 use super::global_variables_view::*;
 use super::object_view::*;
@@ -26,7 +22,6 @@ use super::object_view::*;
 use std::cell::RefCell;
 use std::io::*;
 use std::rc::*;
-
 
 // once this is a FnMut or FnOnce, I don't think we
 // can clone it anymore.
@@ -157,7 +152,6 @@ impl Stack {
     }
 }
 
-
 pub struct ZMachine {
     // the call stack, which are 2-byte words (u16)
     //
@@ -210,7 +204,6 @@ pub struct ZMachine {
     // are we still running? keep processing.
     pub state: MachineState,
 }
-
 
 impl ZMachine {
 

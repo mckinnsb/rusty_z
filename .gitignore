@@ -1,5 +1,10 @@
 external_tools/*
-target/*
+target/debug
+target/asmjs-*
+target/release/dependencies
+target/release/.fingerprint
+*.rlib
+*.cargo-lock
 *.sw*
 *.bk
 *.txt

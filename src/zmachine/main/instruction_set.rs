@@ -986,6 +986,8 @@ pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {
 
 pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
+    //println!( "getting input" );
+
     show_status(code, machine);
     io::stdout().flush();
 
@@ -1012,6 +1014,8 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
     let process_input = Rc::new(move |input: String| {
 
+        //println!( "got: {}", input );
+
         // text and parse are addrs that indicate where
 
         // the text should be filled with the text input
@@ -1033,7 +1037,7 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
         cursor += 1;
 
         if input.len() as u8 > max_length {
-            println!("response too large! try again");
+            //println!("response too large! try again");
             return;
         }
 

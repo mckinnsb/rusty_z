@@ -1,11 +1,24 @@
 <html>
   <head>
-    <title>Test</title>
+    <title>RustyZ</title>
   </head>
   <body>
+
     <section id="content"></section>
+
+    <form action="javascript: void(0);">
+      <input id="player_input" type="text" class="text" value="" name="">
+      <input type="submit" class="text" style="visibility:hidden;" value="" name="">
+    </form>
+
+    <!-- because this is web.asm, there's really no cute way around this,
+         there's no real domready equivelent ( although i think we could load this script
+         here and then bind a domready event to the document, its more or less the same
+         thing for more work - also the closure could create serious problems ) -->
+
     <script type="text/javascript" 
             src="target/asmjs-unknown-emscripten/debug/rusty_z.js" >
     </script>
+
   </body>
 </html>

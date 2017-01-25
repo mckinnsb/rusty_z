@@ -1,18 +1,100 @@
 use std::io::*;
+use std::rc::Rc;
+use std::cell::*;
+use std::borrow::Borrow;
+use std::clone::Clone;
+
+#[cfg(target_os="emscripten")]
+extern crate webplatform;
+#[cfg(target_os="emscripten")]
+use self::webplatform::*;
 
 pub trait LineReader {
-    fn read_next_line(&self, buf: &mut String) -> Result<usize>;
+    fn read_next_line(&mut self, buf: &mut String) -> Option<usize>;
 }
 
 impl LineReader for Stdin {
-    fn read_next_line(&self, buf: &mut String) -> Result<usize> {
-        self.read_line(buf)
+    fn read_next_line(&mut self, buf: &mut String) -> Option<usize> {
+        match self.read_line(buf) {
+            Ok(x) => Some(x),
+            //discard the error
+            Err(e) => None,
+        }
     }
 }
 
 pub struct InputHandler<T: LineReader> {
     pub reader: T,
 }
+
+pub struct WebInputIndicator {
+    pub input_sent: bool,
+}
+
+
+#[cfg(target_os="emscripten")]
+pub struct WebReader<'a> {
+    pub form: HtmlNode<'a>,
+    pub player_input: HtmlNode<'a>,
+    pub current_input: String,
+    pub initialized: bool,
+
+    //we need a bit of shared, mutable state between the callback
+    //and the reader; the object needs to be shared and available
+    //on the heap, so Rc<RefCell> it is
+    
+    pub indicator: Rc<RefCell<WebInputIndicator>>,
+}
+
+#[cfg(target_os="emscripten")]
+impl<'a> LineReader for WebReader<'a> {
+
+    fn read_next_line(&mut self, buf: &mut String) -> Option<usize> {
+
+        //i have no idea why i have to do it this way -
+        //in memory view we just use borrow and borrow_mut - 
+        //wondering if its the underlying data type (my own struct vs. vec)
+        let input_sent = {
+            let indicator : &RefCell<WebInputIndicator> =  self.indicator.borrow();
+            indicator.borrow().input_sent
+        };
+
+        match (self.initialized, input_sent) {
+
+            (true, true) => {
+
+                self.indicator.borrow_mut().input_sent = false;
+
+                self.current_input = self.player_input.prop_get_str( "value" );
+
+                buf.push_str(&self.current_input);
+                Some(buf.len())
+
+            }
+
+            (false, _) => {
+
+                self.initialized = true;
+
+                let indicator = self.indicator.clone();
+
+                self.form.on( "submit", move |_| {
+                    indicator.borrow_mut().input_sent = true;
+                } );
+
+                None
+
+            }
+
+            _ => {
+                None
+            }
+
+        }
+
+    }
+}
+
 
 impl<T: LineReader> InputHandler<T> {
     pub fn get_input(&mut self) -> Option<String> {
@@ -22,10 +104,10 @@ impl<T: LineReader> InputHandler<T> {
         let result = self.reader.read_next_line(&mut input);
 
         let length = match result {
-            Ok(x) => x,
+            Some(x) => x,
             // we ignore the error here, for now
             // im guessing we might need to panic in the future
-            Err(e) => 0,
+            None => 0,
         };
 
         // no input, so return None
@@ -33,16 +115,10 @@ impl<T: LineReader> InputHandler<T> {
             return None;
         };
 
-        // see if there's a '\n' at the end of the line
-        // according to read_line, we should be guaranteed an EOF
-        // or a \n - but i'm not sure if that's part of read_line or not
-
-        // i also believe this MIGHT not work cross-OS. but
-        let end_of_input = input.ends_with('\n');
-
-        if !end_of_input {
-            return None;
-        };
+        //we don't need to check for new line - 
+        //input handler takes care of that for us by dealing
+        //with std:;in::io ( blocks until new line ) and
+        //htmlevent (submits on return)
 
         Some(input)
 
