@@ -616,7 +616,7 @@ pub fn mod_fn(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn new_line(code: &mut OpCode, machine: &mut ZMachine) {
-    println!("");
+    machine.print_to_main("\n");
 }
 
 //uh... do nothing!
@@ -633,7 +633,7 @@ pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {
-    println!( "Quitting.");
+    machine.print_to_main("Quitting.");
     process::exit(0);
 }
 
@@ -652,7 +652,7 @@ pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
     code.read_bytes += string.encoded_length;
 
     // all print functions use print, instead of println
-    print!("{}", string);
+    machine.print_to_main(&format!("{}", string));
 
 }
 
@@ -989,7 +989,7 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
     //println!( "getting input" );
 
     show_status(code, machine);
-    io::stdout().flush();
+    //io::stdout().flush();
 
     let (text_buffer, parse_buffer) = (code.operands[0].get_value(), code.operands[1].get_value());
 

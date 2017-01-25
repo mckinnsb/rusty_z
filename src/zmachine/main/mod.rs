@@ -10,6 +10,11 @@ extern crate termion;
 #[cfg(not(target_os="emscripten"))]
 use self::termion::{clear, color, cursor, style};
 
+#[cfg(target_os="emscripten")]
+extern crate webplatform;
+#[cfg(target_os="emscripten")]
+use self::webplatform::*;
+
 use self::opcode::*;
 use self::input_handler::*;
 
@@ -153,6 +158,7 @@ impl Stack {
 }
 
 pub struct ZMachine {
+
     // the call stack, which are 2-byte words (u16)
     //
     // this also mixes in the local stack,
@@ -574,13 +580,41 @@ impl ZMachine {
     //print to main section , js
     #[cfg(target_os="emscripten")]
     pub fn print_to_main( &self, string: &str ) {
-        print!( "{}", string );
+
+        //so, this is a static method that accesses the JS, and as
+        //it turns out, we don't have to be tooooo precious about
+        //holding onto it - at least, i don't think so, looking at the
+        //code.
+
+        let doc = webplatform::init();
+        
+        //this is hardcoded, because, i can't bear to put anything more
+        //on zmachine. not today.
+        //
+        //also if this isn't found - go ahead and panic
+        //
+        //you know, i was always REALLY curious why the newline character doesn't
+        //actually create a new line in the browser display. it clearly does
+        //in the HTML output - you can see the demarcations.
+
+        let new_string = string.replace( "\n", "<br/>" );
+        doc.element_query( "#content" ).unwrap().html_append(&new_string);
+
     }
 
     //print to header , js
     #[cfg(target_os="emscripten")]
     pub fn print_to_header( &self, left_side: &str, right_side: &str ) {
-        print!( "{} {}", left_side, right_side );
+
+        let doc = webplatform::init();
+        let left = format!( "<div style='float:left;'>{}</div>", left_side );
+        let right = format!( "<div style='float:right;'>{}</div>", right_side );
+        let combined = format!( "{}{}", left, right );
+
+        //this is hardcoded, because, i can't bear to put anything more
+        //on zmachine. not today.
+        doc.element_query( "#header" ).unwrap().html_set(&combined);
+
     }
 
     //print to main section, desktop
@@ -655,8 +689,8 @@ impl ZMachine {
                                          callback: Rc<Fn(String)>) {
 
         let result = match handler.get_input() {
-            Some(str) => {
-                callback(str);
+            Some(x) => {
+                callback(x);
                 true
             }
             _ => false,

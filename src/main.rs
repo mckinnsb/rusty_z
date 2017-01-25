@@ -12,7 +12,6 @@ use std::thread;
 use std::time;
 
 use rusty_z::zmachine::main::*;
-use rusty_z::zmachine::header::*;
 use rusty_z::zmachine::main::input_handler::*;
 
 #[cfg(target_os="emscripten")]
@@ -130,33 +129,6 @@ pub extern fn main_loop() {
     }
 }
 
-//im not sure how i feel about this right now;
-//so this enum has two forms, one has a lifetime,
-//one does not, but this means that all forms
-//of this enum have to be treated as if they have
-//lifetimes. no big deal - we use this at the top
-//of the main loop, so this should survive for a while
-//
-//this sort of solves the problem of having different
-//polymorphic inputs given different configurations,
-//without having to load both libs on both targets
-//( particularly problematic with emscripten, since lots of crates
-//  don't even work - i doubt termion would compile ).
-
-enum InputConfiguration<'a> {
-    Standard,
-    HTMLDocument { html_doc: Document<'a>, 
-                   form_selector: String,
-                   input_selector: String, },
-}
-
-//this is PURE evil
-//we are basically mocking out a type provided by emscripten to allow
-//for the enum above to be used 
-#[cfg(not(target_os="emscripten"))]
-struct Document<'a> {
-    refer: Ref<'a, String>,
-}
 
 #[cfg(not(target_os="emscripten"))]
 fn input_handler( config: &InputConfiguration ) -> InputHandler<std::io::Stdin> {

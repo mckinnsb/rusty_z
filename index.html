@@ -2,14 +2,109 @@
   <head>
     <title>RustyZ</title>
   </head>
+  <!-- its a demo, so inline style! -->
+  <style>
+
+    html {
+      width: 100%;
+    }
+
+    #main {
+      width: 90%;
+      margin-left: 5%;
+      height: 100%;
+      background-color: black;
+      position: relative;
+      font-size: 18px;
+      font-family: monospace;
+      color: green;
+    }
+
+    form, #content, #header {
+      float: left;
+      width: 100%;
+      margin-bottom: 0px;
+    }
+
+    #header {
+      background-color: lightgray;
+      width: 100%;
+    }
+
+    form input:focus {
+      background-color: darkgray;
+      outline: none;
+      opacity: 0.7;
+    }
+
+    form input:disabled {
+      background-color: black;
+    }
+
+    form {
+      float: left;
+      height: 18px;
+      padding: 0;
+      margin: 0;
+    }
+
+    form input {
+      width: 100%;
+      height: 18px;
+      padding: 0 0 0 18px;
+      margin: 0;
+      border: none;
+      background-color: black;
+      font-size: 18px;
+      font-family: monospace;
+      color: green;
+      position: relative;
+      opacity: 0;
+      top: -18px;
+    }
+
+  </style>
   <body>
 
-    <section id="content"></section>
 
-    <form action="javascript: void(0);">
-      <input id="player_input" type="text" class="text" value="" name="">
-      <input type="submit" class="text" style="visibility:hidden;" value="" name="">
-    </form>
+    <section id="main">
+
+
+      <section id="header">&nbsp;</section>
+      <section id="content"></section>
+
+      <form id="form" action="javascript: void(0);">
+        <input id="player_input" type="text" class="text" data-value="" value="" name="">
+        <input type="submit" class="text" style="visibility:hidden;" value="" name="">
+      </form>
+
+    </section>
+
+    <!-- just some stuff to make it easier to play , which also needs priority over the asm -->
+
+    <script>
+
+        (function() {
+
+          var main = document.getElementById("main");
+
+          main.addEventListener( "click", function () {
+            var input = document.getElementById("player_input");
+            input.focus();
+          } );
+
+          var form = document.getElementById( "form" );
+          var input = document.getElementById( "player_input" );
+
+          //starting to learn you should do more on the js side than the rust side
+          form.addEventListener( "submit", function () {
+            input.dataset.value = input.value;
+            input.value = "";
+            input.blur();
+          } );
+
+        }());
+    </script>
 
     <!-- because this is web.asm, there's really no cute way around this,
          there's no real domready equivelent ( although i think we could load this script
@@ -17,7 +112,7 @@
          thing for more work - also the closure could create serious problems ) -->
 
     <script type="text/javascript" 
-            src="target/asmjs-unknown-emscripten/debug/rusty_z.js" >
+            src="target/asmjs-unknown-emscripten/release/rusty_z.js" >
     </script>
 
   </body>
