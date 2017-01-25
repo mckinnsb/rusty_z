@@ -989,7 +989,7 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
     //println!( "getting input" );
 
     show_status(code, machine);
-    //io::stdout().flush();
+    io::stdout().flush();
 
     let (text_buffer, parse_buffer) = (code.operands[0].get_value(), code.operands[1].get_value());
 

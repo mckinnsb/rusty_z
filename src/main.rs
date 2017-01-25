@@ -1,6 +1,8 @@
 #![feature(drop_types_in_const)]
 
-extern crate rusty_z;
+pub mod zmachine;
+
+//extern crate rusty_z;
 extern crate rand;
 use self::rand::*;
 
@@ -11,18 +13,14 @@ use std::process;
 use std::thread;
 use std::time;
 
-use rusty_z::zmachine::main::*;
-use rusty_z::zmachine::main::input_handler::*;
+use zmachine::main::*;
+use zmachine::main::input_handler::*;
 
 #[cfg(target_os="emscripten")]
 extern crate webplatform;
 #[cfg(target_os="emscripten")]
 use webplatform::*;
 
-
-// use std::fs::File;
-// use std::io::Read;
-// 
 // this is unsafe - but the current implementation of emscripten using webplatform 
 // does not allow passing or currying arguments to the main loop callback function, 
 // and rather than try to go down that rabbit hole, we are going to use a static 
@@ -112,24 +110,6 @@ fn create_options<'a>() -> Option<InputConfiguration<'a>> {
     })
 }
 
-pub extern fn main_loop() {
-    unsafe{
-        let state = machine.as_ref().unwrap().state.clone();
-        match state {
-            MachineState::Running => machine.as_mut().unwrap().next_instruction(),
-            MachineState::Restarting => {
-                machine = Some(ZMachine::new(data_buffer.as_ref().unwrap().clone()));
-                machine.as_mut().unwrap().next_instruction();
-            }
-            MachineState::Stopped => process::exit(0),
-            MachineState::TakingInput { ref callback } => {
-                machine.as_mut().unwrap().wait_for_input(handler.as_mut().unwrap(), callback.clone());
-            }
-        };
-    }
-}
-
-
 #[cfg(not(target_os="emscripten"))]
 fn input_handler( config: &InputConfiguration ) -> InputHandler<std::io::Stdin> {
     let reader = std::io::stdin();
@@ -166,6 +146,23 @@ fn input_handler<'a>( config: &InputConfiguration<'a> ) -> InputHandler<WebReade
 
     }
 
+}
+
+pub extern fn main_loop() {
+    unsafe{
+        let state = machine.as_ref().unwrap().state.clone();
+        match state {
+            MachineState::Running => machine.as_mut().unwrap().next_instruction(),
+            MachineState::Restarting => {
+                machine = Some(ZMachine::new(data_buffer.as_ref().unwrap().clone()));
+                machine.as_mut().unwrap().next_instruction();
+            }
+            MachineState::Stopped => process::exit(0),
+            MachineState::TakingInput { ref callback } => {
+                machine.as_mut().unwrap().wait_for_input(handler.as_mut().unwrap(), callback.clone());
+            }
+        };
+    }
 }
 
 #[cfg(not(target_os="emscripten"))]
