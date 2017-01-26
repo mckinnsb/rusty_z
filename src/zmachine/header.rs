@@ -96,12 +96,12 @@ impl Header {
 
         let header_flags = match self.flags {
             HeaderFlags::V1 { ref flags } => flags,
-            HeaderFlags::NotImplemented => panic!( "not implemented!" ),
+            HeaderFlags::NotImplemented => panic!("not implemented!"),
         };
 
         // we are actually copying the status line value from the reference
         // here - unit enums implement Copy by default
-        
+
         let status_type: &str = match header_flags.status_line {
             StatusLineType::Hours => "Show hours and minutes in status line",
             StatusLineType::Score => "Show score and moves in status line",

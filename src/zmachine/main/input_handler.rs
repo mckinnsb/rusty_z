@@ -42,18 +42,21 @@ pub struct InputHandler<T: LineReader> {
 
 pub enum InputConfiguration<'a> {
     Standard,
-    HTMLDocument { html_doc: Document<'a>, 
-                   form_selector: String,
-                   input_selector: String, },
+    HTMLDocument {
+        html_doc: Document<'a>,
+        form_selector: String,
+        input_selector: String,
+    },
 }
 
 //this is PURE evil
 //we are basically mocking out a type provided by emscripten to allow
-//for the enum above to be used 
+//for the enum above to be used
 
 #[cfg(not(target_os="emscripten"))]
 pub struct Document<'a> {
-    refer: Ref<'a, String>,
+    //i just picked this, it could be any type with a lifetime
+    pub refer: Option<Ref<'a, String>>,
 }
 
 pub struct WebInputIndicator {
@@ -71,20 +74,18 @@ pub struct WebReader<'a> {
     //we need a bit of shared, mutable state between the callback
     //and the reader; the object needs to be shared and available
     //on the heap, so Rc<RefCell> it is
-    
     pub indicator: Rc<RefCell<WebInputIndicator>>,
 }
 
 #[cfg(target_os="emscripten")]
 impl<'a> LineReader for WebReader<'a> {
-
     fn read_next_line(&mut self, buf: &mut String) -> Option<usize> {
 
         //i have no idea why i have to do it this way -
-        //in memory view we just use borrow and borrow_mut - 
+        //in memory view we just use borrow and borrow_mut -
         //wondering if its the underlying data type (my own struct vs. vec)
         let input_sent = {
-            let indicator : &RefCell<WebInputIndicator> =  self.indicator.borrow();
+            let indicator: &RefCell<WebInputIndicator> = self.indicator.borrow();
             indicator.borrow().input_sent
         };
 
@@ -94,7 +95,7 @@ impl<'a> LineReader for WebReader<'a> {
 
                 self.indicator.borrow_mut().input_sent = false;
 
-                self.current_input = self.player_input.data_get( "value" ).unwrap();
+                self.current_input = self.player_input.data_get("value").unwrap();
 
                 buf.push_str(&self.current_input);
                 Some(buf.len())
@@ -107,9 +108,8 @@ impl<'a> LineReader for WebReader<'a> {
 
                 let indicator = self.indicator.clone();
 
-                self.form.on( "submit", move |_| {
-                    indicator.borrow_mut().input_sent = true;
-                } );
+                self.form.on("submit",
+                             move |_| { indicator.borrow_mut().input_sent = true; });
 
                 None
 
@@ -148,11 +148,11 @@ impl<T: LineReader> InputHandler<T> {
             return None;
         };
 
-        //we don't need to check for new line - 
+        //we don't need to check for new line -
         //input handler takes care of that for us by dealing
         //with std:;in::io ( blocks until new line ) and
         //htmlevent (submits on return)
-        
+
         Some(input)
 
     }

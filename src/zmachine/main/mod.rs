@@ -24,9 +24,22 @@ use super::memory_view::*;
 use super::global_variables_view::*;
 use super::object_view::*;
 
-use std::cell::RefCell;
+use std::cell::*;
 use std::io::*;
 use std::rc::*;
+
+#[cfg(target_os="emscripten")]
+pub struct ElementCache<'a> {
+    score: HtmlNode<'a>,
+    window: HtmlNode<'a>,
+}
+
+//again: evil. evil evil evil
+//i have no intent to use this type
+#[cfg(not(target_os="emscripten"))]
+pub struct ElementCache<'a> {
+    refer: Ref<'a, String>,
+}
 
 // once this is a FnMut or FnOnce, I don't think we
 // can clone it anymore.
@@ -46,16 +59,14 @@ pub struct RandomGen<T> {
     pub random_seed: u16,
 }
 
-impl<T: rand::SeedableRng<[u32;4]>> RandomGen<T>{
-
-    pub fn seed( &mut self, value: u16 ) {
+impl<T: rand::SeedableRng<[u32; 4]>> RandomGen<T> {
+    pub fn seed(&mut self, value: u16) {
 
         self.random_seed = value;
 
         if self.randoms_predictable {
             self.randoms_predictable_next = 0;
-        }
-        else {
+        } else {
             let val = value as u32;
             let seed = [val, val, val, val];
 
@@ -64,7 +75,7 @@ impl<T: rand::SeedableRng<[u32;4]>> RandomGen<T>{
 
     }
 
-    pub fn next( &mut self, range: u16 ) -> u16 {
+    pub fn next(&mut self, range: u16) -> u16 {
 
         if self.randoms_predictable {
 
@@ -78,15 +89,12 @@ impl<T: rand::SeedableRng<[u32;4]>> RandomGen<T>{
 
             next
 
-        }
-        else {
+        } else {
             //bits will be lost, but its random
             self.generator.gen_range(0, range)
         }
 
     }
-
-
 }
 
 // wraps a Vec with some other information
@@ -157,8 +165,7 @@ impl Stack {
     }
 }
 
-pub struct ZMachine {
-
+pub struct ZMachine<'a> {
     // the call stack, which are 2-byte words (u16)
     //
     // this also mixes in the local stack,
@@ -174,6 +181,11 @@ pub struct ZMachine {
     // their mother implements it this way because its straightforward
     // and mirrors "actual" stack frames. whatever that means.
     pub call_stack: Stack,
+
+    // document
+    document: Document<'a>,
+
+    element_cache: Option<ElementCache<'a>>,
 
     // the header, which actually reads the first 64 bytes in memory
     // everyone has access to it, its mostly configuration stuff
@@ -211,10 +223,9 @@ pub struct ZMachine {
     pub state: MachineState,
 }
 
-impl ZMachine {
-
+impl<'a> ZMachine<'a> {
     //creates a new zmachine from the data given
-    pub fn new(data: Vec<u8>) -> ZMachine {
+    pub fn new(data: Vec<u8>) -> ZMachine<'a> {
 
         // we have to create an immutably reference
         // counted mutable reference in order to
@@ -251,32 +262,39 @@ impl ZMachine {
 
         let pc_start = header.pc_start as u32;
 
-        ZMachine {
+        let mut machine = ZMachine {
             call_stack: Stack {
                 top_of_frame: 0,
                 stack: Vec::new(),
             },
+            document: ZMachine::get_document(),
+            element_cache: None,
             header: header,
             ip: pc_start,
             memory: memory,
             random_generator: RandomGen {
-                generator: XorShiftRng::from_seed([1,2,3,4]),
+                generator: XorShiftRng::from_seed([1, 2, 3, 4]),
                 random_seed: 0,
                 randoms_predictable: false,
                 randoms_predictable_next: 0,
             },
             state: MachineState::Running,
-        }
+        };
 
+        //does nothing in desktop
+        machine.pull_elements();
+
+        machine
+        
     }
 
     #[cfg(not(target_os="emscripten"))]
-    pub fn clear( &self ) {
-        println!( "{}", clear::All );
+    pub fn clear(&self) {
+        println!("{}", clear::All);
     }
 
     #[cfg(target_os="emscripten")]
-    pub fn clear( &self ) { }
+    pub fn clear(&self) {}
 
     //actually executes the instruction
     fn execute_instruction(&mut self, op_code: &mut OpCode) {
@@ -314,6 +332,16 @@ impl ZMachine {
                 self.ip += op_code.read_bytes;
             }
         }
+    }
+
+    #[cfg(target_os="emscripten")]
+    fn get_document() -> Document<'a> {
+        webplatform::init()
+    }
+
+    #[cfg(not(target_os="emscripten"))]
+    fn get_document() -> Document<'a> {
+        Document{ refer: None }
     }
 
     pub fn get_version(&self) -> u8 {
@@ -521,7 +549,7 @@ impl ZMachine {
                     self.ip = ((self.ip as i32) + (difference as i32)) as u32;
 
                     //println!("branching to :{:x}", self.ip);
-                    
+
                 }
 
             }
@@ -579,15 +607,8 @@ impl ZMachine {
 
     //print to main section , js
     #[cfg(target_os="emscripten")]
-    pub fn print_to_main( &self, string: &str ) {
+    pub fn print_to_main(&mut self, string: &str) {
 
-        //so, this is a static method that accesses the JS, and as
-        //it turns out, we don't have to be tooooo precious about
-        //holding onto it - at least, i don't think so, looking at the
-        //code.
-
-        let doc = webplatform::init();
-        
         //this is hardcoded, because, i can't bear to put anything more
         //on zmachine. not today.
         //
@@ -597,69 +618,82 @@ impl ZMachine {
         //actually create a new line in the browser display. it clearly does
         //in the HTML output - you can see the demarcations.
 
-        let new_string = string.replace( "\n", "<br/>" );
-        doc.element_query( "#content" ).unwrap().html_append(&new_string);
+        let new_string = string.replace("\n", "<br/>");
+        self.element_cache.as_mut().unwrap().window.html_append(&new_string);
 
     }
 
     //print to header , js
     #[cfg(target_os="emscripten")]
-    pub fn print_to_header( &self, left_side: &str, right_side: &str ) {
+    pub fn print_to_header(&mut self, left_side: &str, right_side: &str) {
 
-        let doc = webplatform::init();
-        let left = format!( "<div style='float:left;'>{}</div>", left_side );
-        let right = format!( "<div style='float:right;'>{}</div>", right_side );
-        let combined = format!( "{}{}", left, right );
+        let left = format!("<div style='float:left;'>{}</div>", left_side);
+        let right = format!("<div style='float:right;'>{}</div>", right_side);
+        let combined = format!("{}{}", left, right);
 
         //this is hardcoded, because, i can't bear to put anything more
         //on zmachine. not today.
-        doc.element_query( "#header" ).unwrap().html_set(&combined);
+        self.element_cache.as_mut().unwrap().score.html_set(&combined);
 
     }
 
     //print to main section, desktop
     #[cfg(not(target_os="emscripten"))]
-    pub fn print_to_main( &self, string: &str ) {
-        print!( "{}", string );
+    pub fn print_to_main(&self, string: &str) {
+        print!("{}", string);
     }
-    
+
     //print to header( usually, status line ), desktop
     //
     //not sure if these arguments are the best right now,
     //also, pretty sure this is only used by version 3 - in version
     //4 + i think this is a sep. window, desktop
     #[cfg(not(target_os="emscripten"))]
-    pub fn print_to_header( &self, left_side: &str, right_side: &str ) {
+    pub fn print_to_header(&self, left_side: &str, right_side: &str) {
 
         //terminals start at 1,1 so, keep that in mind
         //this could panic... but if it can't get the terminal size,
         //there's a good reason to
-        let (x,y) = termion::terminal_size().unwrap();
+        let (x, y) = termion::terminal_size().unwrap();
 
-        let top_left = cursor::Goto(1,1);
+        let top_left = cursor::Goto(1, 1);
         //padding is 4 chars
         let margin_padding = "    ";
-        let center_size = (x as usize) - left_side.len() - right_side.len() - 4*2;
-        let center_padding : String = (0..center_size).into_iter().map( |_| " " ).collect();
+        let center_size = (x as usize) - left_side.len() - right_side.len() - 4 * 2;
+        let center_padding: String = (0..center_size).into_iter().map(|_| " ").collect();
         let offset_position = x - (right_side.len() as u16) - 4;
         let bottom = cursor::Goto(2, y);
 
-        let header = format!( "{}{}{}{}{}{}{}{}{}{}{}{}", cursor::Goto(1,1),
-                                                          color::Bg(color::LightWhite),
-                                                          color::Fg(color::Black),
-                                                          clear::CurrentLine,
-                                                          top_left,
-                                                          margin_padding,
-                                                          left_side,
-                                                          center_padding,
-                                                          right_side,
-                                                          margin_padding,
-                                                          style::Reset,
-                                                          bottom );
+        let header = format!("{}{}{}{}{}{}{}{}{}{}{}{}",
+                             cursor::Goto(1, 1),
+                             color::Bg(color::LightWhite),
+                             color::Fg(color::Black),
+                             clear::CurrentLine,
+                             top_left,
+                             margin_padding,
+                             left_side,
+                             center_padding,
+                             right_side,
+                             margin_padding,
+                             style::Reset,
+                             bottom);
 
-        print!( "{}", header );
+        print!("{}", header);
 
     }
+
+    //print to main section, desktop
+    #[cfg(target_os="emscripten")]
+    pub fn pull_elements(&mut self) {
+        self.element_cache = Some( ElementCache{
+            score: self.document.element_query("#header").unwrap(),
+            window: self.document.element_query("#content").unwrap(),
+        } );
+    }
+
+    //print to main section, desktop
+    #[cfg(not(target_os="emscripten"))]
+    pub fn pull_elements(&mut self) { }
 
     // this JUST reads a variable, but does not modify the stack in any way
     // its different from the opcode functions, which we may merge into zmachine,

@@ -175,7 +175,9 @@ impl ZString {
 
                 //if six and in alphabet A2, start a bigchar, but only if
                 //we are not starting an abbreviation
-                (6, &Alphabet::A2, &BigChar::None, &Abbreviation::None) => printing_big_char = BigChar::Building,
+                (6, &Alphabet::A2, &BigChar::None, &Abbreviation::None) => {
+                    printing_big_char = BigChar::Building
+                }
 
                 //if building bigchar, this char is upper half of bigchar
                 (upper, _, &BigChar::Building, _) => {
@@ -201,7 +203,9 @@ impl ZString {
 
                 //if we have a character between 1 and 3, start building an abbreviation
                 //if we aren't already.
-                (z @ 1...3, _, _, &Abbreviation::None) => printing_abbreviation = Abbreviation::Partial { z: z },
+                (z @ 1...3, _, _, &Abbreviation::None) => {
+                    printing_abbreviation = Abbreviation::Partial { z: z }
+                }
 
                 //if we are building an abbreviation, the next # is the index
                 //find the abbreviation and print

@@ -1,5 +1,14 @@
 #![feature(drop_types_in_const)]
 
+//its a little strange FPS is a signed value, not
+//sure what - would mean?
+//
+//values larger than 1000 seem to have no effect
+//we might want to figure out a way to run more than one opcode
+//at a time, potentially taking away control between input/sreads
+
+const FPS: i32 = 1000;
+
 pub mod zmachine;
 
 //extern crate rusty_z;
@@ -21,9 +30,9 @@ extern crate webplatform;
 #[cfg(target_os="emscripten")]
 use webplatform::*;
 
-// this is unsafe - but the current implementation of emscripten using webplatform 
-// does not allow passing or currying arguments to the main loop callback function, 
-// and rather than try to go down that rabbit hole, we are going to use a static 
+// this is unsafe - but the current implementation of emscripten using webplatform
+// does not allow passing or currying arguments to the main loop callback function,
+// and rather than try to go down that rabbit hole, we are going to use a static
 // mut zmachine
 //
 // at first rust was very against things living "oustide" of main - this has
@@ -38,7 +47,7 @@ use webplatform::*;
 // its actually probably far more standard to use Option<Box<T>>s.
 // might change over to that soon
 
-static mut machine: Option<ZMachine> = None;
+static mut machine: Option<ZMachine<'static>> = None;
 static mut data_buffer: Option<Vec<u8>> = None;
 static mut input_config: Option<InputConfiguration<'static>> = None;
 
@@ -103,53 +112,57 @@ fn create_options<'a>() -> Option<InputConfiguration<'a>> {
 
 #[cfg(target_os="emscripten")]
 fn create_options<'a>() -> Option<InputConfiguration<'a>> {
-    Some(InputConfiguration::HTMLDocument{
-        html_doc: webplatform::init(), 
+    Some(InputConfiguration::HTMLDocument {
+        html_doc: webplatform::init(),
         form_selector: String::from("form"),
         input_selector: String::from("#player_input"),
     })
 }
 
 #[cfg(not(target_os="emscripten"))]
-fn input_handler( config: &InputConfiguration ) -> InputHandler<std::io::Stdin> {
+fn input_handler(config: &InputConfiguration) -> InputHandler<std::io::Stdin> {
     let reader = std::io::stdin();
     InputHandler { reader: reader }
 }
 
 #[cfg(target_os="emscripten")]
-fn input_handler<'a>( config: &InputConfiguration<'a> ) -> InputHandler<WebReader<'a>> {
+fn input_handler<'a>(config: &InputConfiguration<'a>) -> InputHandler<WebReader<'a>> {
 
     match config {
 
-        &InputConfiguration::HTMLDocument{ ref html_doc, ref form_selector, ref input_selector } =>  {
+        &InputConfiguration::HTMLDocument { ref html_doc,
+                                            ref form_selector,
+                                            ref input_selector } => {
 
             let form = html_doc.element_query(form_selector);
             let player_input = html_doc.element_query(input_selector);
 
             let reader = match (form, player_input) {
-                (Some(form_element), Some(input_element)) => WebReader{
-                                    form: form_element,
-                                    player_input: input_element,
-                                    //we explicitly want something that will complain if used
-                                    current_input: String::with_capacity(0),
-                                    initialized: false,
-                                    indicator: Rc::new(RefCell::new(WebInputIndicator{ input_sent: false })),
-                                },
-                _ => panic!( "element not found!" ),
+                (Some(form_element), Some(input_element)) => {
+                    WebReader {
+                        form: form_element,
+                        player_input: input_element,
+                        //we explicitly want something that will complain if used
+                        current_input: String::with_capacity(0),
+                        initialized: false,
+                        indicator: Rc::new(RefCell::new(WebInputIndicator { input_sent: false })),
+                    }
+                }
+                _ => panic!("element not found!"),
             };
 
             InputHandler { reader: reader }
 
         }
 
-        _ => panic!( "emscripten was given a non-html config!" ),
+        _ => panic!("emscripten was given a non-html config!"),
 
     }
 
 }
 
-pub extern fn main_loop() {
-    unsafe{
+pub extern "C" fn main_loop() {
+    unsafe {
         let state = machine.as_ref().unwrap().state.clone();
         match state {
             MachineState::Running => machine.as_mut().unwrap().next_instruction(),
@@ -159,43 +172,48 @@ pub extern fn main_loop() {
             }
             MachineState::Stopped => process::exit(0),
             MachineState::TakingInput { ref callback } => {
-                machine.as_mut().unwrap().wait_for_input(handler.as_mut().unwrap(), callback.clone());
+                machine.as_mut()
+                    .unwrap()
+                    .wait_for_input(handler.as_mut().unwrap(), callback.clone());
             }
         };
     }
 }
 
 #[cfg(not(target_os="emscripten"))]
-fn set_loop () {
+fn set_loop() {
     loop {
         main_loop();
     }
 }
 
 #[cfg(target_os="emscripten")]
-fn set_loop () {
+fn set_loop() {
     //emscripten_set_main_loop takes three parameters
     //
-    //1) a function 
+    //1) a function
     //
     //   this function needs to be:
-    //   
+    //
     //   1) extern
     //   2) have no parameters
     //
     //2) an integer, fps
-    //  
-    //   if 0, will equiv. to using requestAnimationFrame.
+    //
+    //   if 0, will equiv. to using requestAnimationFrame.,
+    //   this is actually not really desireable here as it will lock the loop
+    //   to our refresh rate, which is going to be about 60hz_144hz, which means
+    //   we will be running at 1/20th the speed of an apple IIe
     //
     //3) is infinite loop
     //
     //   honestly, this one is kind of weird ( because 0 will still be infinite loop )
-    //   but it basically means "do you want main()'s context to remain when 
+    //   but it basically means "do you want main()'s context to remain when
     //   main_loop is called". so if false, every call will be static
     //   and without any environment or context ( and main is just used
     //   to set up this function, probably ), and if true, things like static
     //   variables and stuff allocated to the heap will stick around.
     unsafe {
-        webplatform::emscripten_set_main_loop(main_loop, 0, 1);
+        webplatform::emscripten_set_main_loop(main_loop, FPS, 1);
     }
 }

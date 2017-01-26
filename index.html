@@ -64,11 +64,10 @@
     }
 
   </style>
+
   <body>
 
-
     <section id="main">
-
 
       <section id="header">&nbsp;</section>
       <section id="content"></section>
@@ -104,16 +103,10 @@
           } );
 
         }());
+
     </script>
 
-    <!-- because this is web.asm, there's really no cute way around this,
-         there's no real domready equivelent ( although i think we could load this script
-         here and then bind a domready event to the document, its more or less the same
-         thing for more work - also the closure could create serious problems ) -->
-
-    <script type="text/javascript" 
-            src="target/asmjs-unknown-emscripten/release/rusty_z.js" >
-    </script>
+    <script type="text/javascript" src="target/asmjs-unknown-emscripten/debug/rusty_z.js" ></script> 
 
   </body>
 </html>

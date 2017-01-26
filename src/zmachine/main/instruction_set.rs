@@ -954,7 +954,7 @@ pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {
     //we can match against version 3 by also matching against the header flags, which 
     //will let us unwrap some necessary info
 
-    if let &HeaderFlags::V1{ flags: HeaderFlagsV1{ ref status_line, .. } } = &machine.header.flags {
+    let (left, right) = if let &HeaderFlags::V1{ flags: HeaderFlagsV1{ ref status_line, .. } } = &machine.header.flags {
 
         let globals = machine.get_global_variables_view();
 
@@ -973,8 +973,15 @@ pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {
             (&StatusLineType::Score, _) => format!( "Score: {} Turns: {}", first_param, second_param ),
         };
 
-        machine.print_to_header(&format!("{}",score_name), &out);
+        (Some(format!("{}",score_name)), Some(out))
 
+    } else {
+        (None, None)
+    };
+
+    match (left, right) {
+        (Some(l), Some(r)) => machine.print_to_header( &l, &r ),
+        _ => ()
     }
 
     
