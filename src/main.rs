@@ -162,21 +162,28 @@ fn input_handler<'a>(config: &InputConfiguration<'a>) -> InputHandler<WebReader<
 }
 
 pub extern "C" fn main_loop() {
+
     unsafe {
-        let state = machine.as_ref().unwrap().state.clone();
-        match state {
-            MachineState::Running => machine.as_mut().unwrap().next_instruction(),
+
+        let machina = machine.as_mut().unwrap();
+
+        while let x @ MachineState::Running = machina.state.clone() {
+            machina.next_instruction();
+        }
+
+        match machina.state.clone() {
             MachineState::Restarting => {
                 machine = Some(ZMachine::new(data_buffer.as_ref().unwrap().clone()));
                 machine.as_mut().unwrap().next_instruction();
             }
             MachineState::Stopped => process::exit(0),
             MachineState::TakingInput { ref callback } => {
-                machine.as_mut()
-                    .unwrap()
-                    .wait_for_input(handler.as_mut().unwrap(), callback.clone());
-            }
+                machina.wait_for_input(handler.as_mut().unwrap(), callback.clone());
+            },
+            //this shouldn't happen
+            _ => (),
         };
+
     }
 }
 
