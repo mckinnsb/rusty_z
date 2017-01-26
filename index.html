@@ -11,12 +11,14 @@
 
     #main {
       width: 90%;
-      margin-left: 5%;
-      height: 100%;
+      margin: 5%;
+      padding-top: 1.2em;
+      height: 95%;
       background-color: black;
       position: relative;
       font-size: 18px;
       font-family: monospace;
+      overflow: hidden;
       color: green;
     }
 
@@ -28,6 +30,8 @@
 
     #header {
       background-color: lightgray;
+      position: absolute;
+      top: 0px;
       width: 100%;
     }
 
@@ -46,6 +50,11 @@
       height: 18px;
       padding: 0;
       margin: 0;
+    }
+
+    form input[type=submit] {
+      position: absolute;
+        height: 0px;
     }
 
     form input {
@@ -86,6 +95,8 @@
         (function() {
 
           var main = document.getElementById("main");
+          var content = document.getElementById("content");
+          var header = document.getElementById("header");
 
           main.addEventListener( "click", function () {
             var input = document.getElementById("player_input");
@@ -97,9 +108,30 @@
 
           //starting to learn you should do more on the js side than the rust side
           form.addEventListener( "submit", function () {
+
+            var submitted = input.value;
+
             input.dataset.value = input.value;
             input.value = "";
             input.blur();
+
+            content.append(submitted);
+            var breakNode = document.createElement( "br" );
+            content.appendChild(breakNode);
+            content.appendChild(breakNode);
+
+            setTimeout( function () {
+              //we don't include the form because it is offset/over the content
+              var height = (content.offsetHeight + header.offsetHeight);
+              var container_height = main.offsetHeight;
+
+              if( height > container_height ) {
+                var diff = (height - container_height);
+                main.style.paddingTop = -1 * diff + "px";
+                header.style.top = diff + (header.offsetHeight - 2) + "px";
+              }
+            }, 50 );
+
           } );
 
         }());
