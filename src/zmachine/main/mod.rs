@@ -61,15 +61,36 @@ pub struct RandomGen<T> {
 }
 
 impl<T: rand::SeedableRng<[u32; 4]>> RandomGen<T> {
+
     pub fn seed(&mut self, value: u16) {
 
         self.random_seed = value;
 
+        //if seed < 1000, we set the generator into predictable mode,
+        //and begin counting up from 1
+        self.randoms_predictable = value < 1000;
+
         if self.randoms_predictable {
-            self.randoms_predictable_next = 0;
+            self.randoms_predictable_next = 1;
         } else {
-            let val = value as u32;
-            let seed = [val, val, val, val];
+            let seed = match value {
+
+                // if s is 0, all future random numbers will be "really random"
+                // so we just generate a random number generator at random
+                0 => {
+                    [rand::thread_rng().gen::<u32>(), 
+                     rand::thread_rng().gen::<u32>(), 
+                     rand::thread_rng().gen::<u32>(), 
+                     rand::thread_rng().gen::<u32>()]
+                }
+                _ => {
+                    //else, use the seed to make a random number generator,
+                    //such that the same seed will generate the same #s every time
+                    let val = value as u32;
+                    //overflow is fine
+                    [val, val+1, val+2, val+3]
+                }
+            };
 
             self.generator = T::from_seed(seed);
         }
@@ -80,19 +101,20 @@ impl<T: rand::SeedableRng<[u32; 4]>> RandomGen<T> {
 
         if self.randoms_predictable {
 
-            let next = self.randoms_predictable_next;
-
             self.randoms_predictable_next += 1;
 
-            if self.randoms_predictable_next == self.random_seed {
-                self.randoms_predictable_next = 0;
+            if self.randoms_predictable_next > range {
+                self.randoms_predictable_next = 1;
             }
 
-            next
+            self.randoms_predictable_next
 
         } else {
             //bits will be lost, but its random
-            self.generator.gen_range(0, range)
+            //note that zmachine is actually inclusive in its range,
+            //and, interestingly, no random may be 0..
+            
+            self.generator.gen_range(1, range + 1)
         }
 
     }
@@ -278,9 +300,9 @@ impl<'a> ZMachine<'a> {
                                                    rand::thread_rng().gen::<u32>(), 
                                                    rand::thread_rng().gen::<u32>(), 
                                                    rand::thread_rng().gen::<u32>()]),
-                random_seed: 0,
-                randoms_predictable: true,
-                randoms_predictable_next: 0,
+                random_seed: 1,
+                randoms_predictable: false,
+                randoms_predictable_next: 1,
             },
             state: MachineState::Running,
         };

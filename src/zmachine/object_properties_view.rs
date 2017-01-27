@@ -62,12 +62,6 @@ impl ObjectPropertiesView {
     // gets the property address ( full address )
     pub fn get_property_addr(&self, property_index: u8) -> u32 {
         let info = self.get_property_info(property_index);
-        self.get_property_addr_from_info(info)
-    }
-
-    // gets the property address from an info object ( helpful if you already
-    // have the info around )
-    pub fn get_property_addr_from_info(&self, info: ObjectPropertyInfo) -> u32 {
         match info.addr {
             None => 0,
             Some(x) => x + self.view.pointer,
@@ -88,13 +82,12 @@ impl ObjectPropertiesView {
 
         let find_first = property_index == 0;
 
-        // could use a while, but thats sort of not using destructuring
         loop {
 
             let size_byte = self.view.read_at_head(pointer_cursor);
 
+            // terminate on size byte of 0
             if size_byte == 0 {
-                // terminate on size byte of 0
                 break;
             }
 
@@ -132,8 +125,6 @@ impl ObjectPropertiesView {
                 self.get_property_default(property_index)
             }
             Some(addr) => {
-                // println!( "found addr: {}", addr );
-                // println!( "+ pointer: {}", self.get_property_addr_from_info(info));
                 match info.size {
                     1 => self.view.read_at_head(addr) as u16,
                     2 => self.view.read_u16_at_head(addr),
@@ -154,12 +145,11 @@ impl ObjectPropertiesView {
 
     pub fn write_property(&self, property_index: u8, value: u16) {
 
-        let property = self.get_property(property_index);
-        let ObjectPropertyInfo { size, addr, .. } = property.info;
+        let info = self.get_property_info(property_index);
 
-        match (size, addr) {
-            (1, Some(addr)) => self.view.write_at_head(addr + 1, value as u8),
-            (2, Some(addr)) => self.view.write_u16_at_head(addr + 1, value),
+        match (info.size, info.addr) {
+            (1, Some(addr)) => self.view.write_at_head(addr, value as u8),
+            (2, Some(addr)) => self.view.write_u16_at_head(addr, value),
             _ => {
                 panic!("you are attempting to write a property to memory that is greater than 2 \
                         bytes, or doesnt exist")

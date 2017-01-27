@@ -82,7 +82,7 @@ fn main() {
     //
     // we could probably split this out later using CFG to
     // lower the size of the desktop binary
-    let data = include_bytes!("../data.z3");
+    let data = include_bytes!("../Zork1.dat");
 
     // this gets the file size from the static string
     let file_size = data.len();

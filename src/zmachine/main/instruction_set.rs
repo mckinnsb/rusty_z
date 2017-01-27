@@ -291,16 +291,14 @@ pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {
     //
     // this is kind of confusing until you realize that the value coming
     // into this operand is coming out of get_prop_addr
+    //
+    // in order to get the size byte, we have to reduce by one
 
     let property_address = code.operands[0].get_value() - 1;
     let size_byte = machine.get_memory_view().read_at(property_address as u32);
-    // println!( "sizebyte:{:x}", size_byte );
 
     let ObjectPropertyInfo { size, .. } =
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
-
-    // println!( "prop address:{:x}", property_address );
-    // println!( "prop len:{}", size );
 
     code.result = size as u16;
 
@@ -312,9 +310,8 @@ pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    // println!( "object: {}", object );
-    // println!( "property: {}", property );
-
+    //we add one, because we are actually returning the "property address"
+    //not the size byte address
     code.result = machine.get_object_view(object)
         .get_properties_table_view()
         .get_property_addr(property as u8) as u16;
@@ -565,12 +562,13 @@ pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 //this might be the easiest one
+//stores value in variable
 pub fn load(code: &mut OpCode, machine: &mut ZMachine) {
     code.store = true;
     code.result = code.operands[0].get_value();
 }
 
-// this also actually operates on the entirety of dynamic memory, and
+// this actually operates on the entirety of static + dynamic memory, and
 // can be used to load things outside the global variables table or stack
 // so again, we actually use the entire memory view here (just like storew)
 
@@ -589,16 +587,18 @@ pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
+// this operates on the entirety of static + dynamic memory
+
 pub fn loadb(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
 
     let (array, byte_index) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    let address = (array as u32) + (byte_index as u32);
+    let address = (array) + (byte_index);
 
     code.result = machine.get_memory_view()
-        .read_at(address) as u16;
+        .read_at(address as u32) as u16;
     // done
 
 }
@@ -788,24 +788,35 @@ pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
     code.store = true;
 
     let (range, seed) = match code.operands[0].get_value() as i16 {
-        x if x < 0 => (None, Some(-1 * x)),
+        x if x <= 0 => (None, Some(-1 * x)),
         x @ _ => (Some(x), None),
     };
 
     //the function will only seed or return a random number, not both
     if let Some(seed_value) = seed {
-        //if its a seed, the result is 0
-        //and we do not generate a return value
+
+        //If range is negative, the random number generator is seeded to that value and the return
+        //value is 0. Most interpreters consider giving 0 as range illegal (because they attempt a
+        //division with remainder by the range), but correct behaviour is to reseed the generator
+        //in as random a way as the interpreter can (e.g. by using the time in milliseconds).
+
+        //in our case, we will just ask thread_rng() regarding 0, but random number
+        //generator will handle it
         
         machine.random_generator.seed(seed_value as u16);
         code.result = 0;
         return;
+
     };
 
     if let Some(range_value) = range {
+
+        //If range is positive, returns a uniformly random number between 1 and range.
+        
         let random = machine.random_generator.next(range_value as u16);
         code.result = random;
         return;
+
     };
 
 }
@@ -1300,16 +1311,12 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
 pub fn store(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value());
-
     machine.store_variable(variable as u8, value);
     // done
 
 }
 
-// like storew, this operates on all memory, and is
-// another store that isn't a store, as this stores
-// in the opcode and not via the machine
-
+// this only operates on dynamic and static memory
 pub fn storeb(code: &mut OpCode, machine: &mut ZMachine) {
 
 
@@ -1317,16 +1324,13 @@ pub fn storeb(code: &mut OpCode, machine: &mut ZMachine) {
         (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
 
     let address = start + index;
+
     machine.get_memory_view()
         .write_at(address as u32, value as u8);
 
 }
 
-// this actually operates on the entirety of the dynamic
-// memory, and can be used to alter things outside
-// of the global variable table ( which seems to just be
-// for convenience, but i think his can be used to alter
-// abbreviations or things like that mid-game )
+// this only operates on dynamic and static memory
 pub fn storew(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (start, index, value) =
@@ -1361,7 +1365,8 @@ pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.branch = true;
 
-    let (object, attribute) = (code.operands[0].get_value(), code.operands[1].get_value());
+    let (object, attribute) = (code.operands[0].get_value(), 
+                               code.operands[1].get_value());
 
     // println!( "object:{}", object);
     // println!( "attribute:{}", attribute);

@@ -152,7 +152,7 @@ impl<T: LineReader> InputHandler<T> {
         //input handler takes care of that for us by dealing
         //with std:;in::io ( blocks until new line ) and
         //htmlevent (submits on return)
-
+        warn!( "READ INPUT:{}", input );
         Some(input)
 
     }
