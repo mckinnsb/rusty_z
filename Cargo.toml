@@ -5,6 +5,8 @@ authors = [ "Stew <mckinnsb@gmail.com>" ]
 
 [dependencies]
 rand = "0.3.15"
+log = "0.3.6"
+log4rs = "0.5.2"
 
 [dependencies.webplatform]
 git = "https://github.com/tcr/rust-webplatform"

@@ -30,6 +30,21 @@ extern crate webplatform;
 #[cfg(target_os="emscripten")]
 use webplatform::*;
 
+#[cfg(not(target_os="emscripten"))]
+#[macro_use]
+extern crate log;
+#[cfg(not(target_os="emscripten"))]
+extern crate log4rs;
+
+#[cfg(not(target_os="emscripten"))]
+use log::LogLevelFilter;
+#[cfg(not(target_os="emscripten"))]
+use log4rs::append::file::*;
+#[cfg(not(target_os="emscripten"))]
+use log4rs::config::{Appender, Config, Logger, Root};
+
+
+
 // this is unsafe - but the current implementation of emscripten using webplatform
 // does not allow passing or currying arguments to the main loop callback function,
 // and rather than try to go down that rabbit hole, we are going to use a static
@@ -168,12 +183,14 @@ pub extern "C" fn main_loop() {
         let machina = machine.as_mut().unwrap();
 
         while let x @ MachineState::Running = machina.state.clone() {
+            warn!( "IP: {:x}", machina.current_ip() );
             machina.next_instruction();
         }
 
         match machina.state.clone() {
             MachineState::Restarting => {
                 machine = Some(ZMachine::new(data_buffer.as_ref().unwrap().clone()));
+                warn!( "IP: {:x}", machine.as_ref().unwrap().current_ip() );
                 machine.as_mut().unwrap().next_instruction();
             }
             MachineState::Stopped => process::exit(0),
@@ -189,6 +206,23 @@ pub extern "C" fn main_loop() {
 
 #[cfg(not(target_os="emscripten"))]
 fn set_loop() {
+
+    //setup logger
+
+    let logger = FileAppender::builder().build("log/dev.log").unwrap();
+    let expanded = FileAppender::builder().build("log/expanded.log").unwrap();
+
+    let config = Config::builder().
+        appender(Appender::builder().build("main", Box::new(logger))).
+        appender(Appender::builder().build("expanded", Box::new(expanded))).
+        logger(Logger::builder().appender("expanded").additive(false).build("rusty_z::zmachine::main", LogLevelFilter::Info)).
+        build(Root::builder().appender("main").build(LogLevelFilter::Warn)).
+        unwrap();
+    
+    let handle = log4rs::init_config(config).unwrap();
+
+    warn!( "log started" );
+
     loop {
         main_loop();
     }

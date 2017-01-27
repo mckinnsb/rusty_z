@@ -4,6 +4,7 @@ pub mod input_handler;
 
 extern crate rand;
 use self::rand::*;
+use std::time::SystemTime;
 
 #[cfg(not(target_os="emscripten"))]
 extern crate termion;
@@ -273,9 +274,12 @@ impl<'a> ZMachine<'a> {
             ip: pc_start,
             memory: memory,
             random_generator: RandomGen {
-                generator: XorShiftRng::from_seed([1, 2, 3, 4]),
+                generator: XorShiftRng::from_seed([rand::thread_rng().gen::<u32>(), 
+                                                   rand::thread_rng().gen::<u32>(), 
+                                                   rand::thread_rng().gen::<u32>(), 
+                                                   rand::thread_rng().gen::<u32>()]),
                 random_seed: 0,
-                randoms_predictable: false,
+                randoms_predictable: true,
                 randoms_predictable_next: 0,
             },
             state: MachineState::Running,
@@ -295,6 +299,11 @@ impl<'a> ZMachine<'a> {
 
     #[cfg(target_os="emscripten")]
     pub fn clear(&self) {}
+
+    //anyone can read this, just not mut/set it
+    pub fn current_ip (&self) -> u32 {
+        self.ip
+    }
 
     //actually executes the instruction
     fn execute_instruction(&mut self, op_code: &mut OpCode) {
@@ -599,10 +608,22 @@ impl<'a> ZMachine<'a> {
             op_code.read_variables(view, globals, stack);
         }
 
+        {
+            ZMachine::print_op(&op_code);
+        }
         //println!("{:x}", op_code.ip);
 
         self.execute_instruction(&mut op_code);
 
+    }
+
+    #[cfg(target_os="emscripten")]
+    pub fn print_op( op_code: &OpCode ) {
+    }
+
+    #[cfg(not(target_os="emscripten"))]
+    pub fn print_op( op_code: &OpCode ) {
+        info!( "CODE:{}", op_code );
     }
 
     //print to main section , js

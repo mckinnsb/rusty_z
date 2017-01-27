@@ -435,7 +435,8 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
         unparent_object(&mut child_view, machine);
     }
 
-    // in the case of 0, this deparents
+    // in the case of 0, this deparents, but would have been deparented
+    // because of above anyway
     child_view.set_parent(parent);
 
     if parent != 0 {
@@ -563,8 +564,10 @@ pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
+//this might be the easiest one
 pub fn load(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    code.store = true;
+    code.result = code.operands[0].get_value();
 }
 
 // this also actually operates on the entirety of dynamic memory, and
@@ -577,7 +580,9 @@ pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {
 
     let (start, index) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    let address = (start as u32) + (index as u32) * 2;
+    //this address has to by in dynamic memory,
+    //which means it has to be in the lower 64k
+    let address = (start) + (index * 2);
 
     code.result = machine.get_memory_view()
         .read_u16_at(address as u32);
@@ -782,8 +787,8 @@ pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
 
     code.store = true;
 
-    let (range, seed) = match code.operands[0].get_value() {
-        x if x < 0 => (None, Some(x)),
+    let (range, seed) = match code.operands[0].get_value() as i16 {
+        x if x < 0 => (None, Some(-1 * x)),
         x @ _ => (Some(x), None),
     };
 
@@ -792,13 +797,13 @@ pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
         //if its a seed, the result is 0
         //and we do not generate a return value
         
-        machine.random_generator.seed(seed_value);
+        machine.random_generator.seed(seed_value as u16);
         code.result = 0;
         return;
     };
 
     if let Some(range_value) = range {
-        let random = machine.random_generator.next(range_value);
+        let random = machine.random_generator.next(range_value as u16);
         code.result = random;
         return;
     };
@@ -915,7 +920,8 @@ pub fn save(code: &mut OpCode, machine: &mut ZMachine) {
 pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {
 
     // println!("{}",code);
-    let (object, attr) = (code.operands[0].get_value(), code.operands[1].get_value());
+    let (object, attr) = (code.operands[0].get_value(), 
+                          code.operands[1].get_value());
 
     machine.get_object_view(object).set_attribute(attr);
 
@@ -1375,16 +1381,25 @@ fn unparent_object( obj_view: &mut ObjectView, machine: &mut ZMachine ) {
         return;
     }
 
+    obj_view.set_parent(0);
+
     let parent_view = machine.get_object_view(current_parent);
     let mut current_child = parent_view.get_child();
+
+    if current_child == 0 {
+        panic!("object tree badly formed - object marked as having a parent that \
+                does not have any children!");
+    }
 
     // i would try to generalize the logic, but as it turns out, you do completely
     // different things
     if current_child == obj_view.object_id {
-        // if first child, set parent's new first child to child's sibling
+
+        // 1) if first child, set parent's new first child to child's sibling
         parent_view.set_child(obj_view.get_sibling());
+
     } else {
-        // else, progress through children until child is found, then
+        // 2), if not first childk, progress through children until child is found, then
         // set previous child to child's sibling
         let mut last_child = current_child;
 
@@ -1404,7 +1419,7 @@ fn unparent_object( obj_view: &mut ObjectView, machine: &mut ZMachine ) {
 
         }
 
-        let new_sibling = machine.get_object_view(current_child).get_sibling();
+        let new_sibling = obj_view.get_sibling();
         machine.get_object_view(last_child).set_sibling(new_sibling);
 
     }

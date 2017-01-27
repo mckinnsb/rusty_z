@@ -152,19 +152,6 @@ impl ObjectView {
             _ => panic!("attempt to read an invalid attribute"),
         }
 
-        /*
-        match attribute {
-            i @ 0...15 => {
-                let new_attr_mask = self.view.read_u16_at_head(0) | (i << 1);
-                self.view.write_u16_at_head(0, new_attr_mask);
-            }
-            i @ 16...31 => {
-                let new_attr_mask = self.view.read_u16_at_head(1) | ((i - 16) << 1);
-                self.view.write_u16_at_head(1, new_attr_mask);
-            }
-            err @ _ => panic!("attempt to write an invalid attribute:{}", err),
-        }
-        */
     }
 
     pub fn unset_attribute(&self, attribute: u16) {
@@ -178,18 +165,5 @@ impl ObjectView {
             _ => panic!("attempt to read an invalid attribute"),
         }
 
-        /*
-        match attribute {
-            i @ 0...15 => {
-                let new_attr_mask = self.view.read_u16_at_head(0) & !(i << 1);
-                self.view.write_u16_at_head(0, new_attr_mask);
-            }
-            i @ 16...31 => {
-                let new_attr_mask = self.view.read_u16_at_head(1) & !((i - 16) << 1);
-                self.view.write_u16_at_head(1, new_attr_mask);
-            }
-            err @ _ => panic!("attempt to write an invalid attribute:{}", err),
-        }
-        */
     }
 }

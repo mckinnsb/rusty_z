@@ -240,6 +240,7 @@ impl OpCode {
             (&OpForm::Short, 1, 0xB) => instruction_set::ret,
             (&OpForm::Short, 1, 0xC) => instruction_set::jump,
             (&OpForm::Short, 1, 0xD) => instruction_set::print_paddr,
+            (&OpForm::Short, 1, 0xE) => instruction_set::load,
             // 0 op
             (&OpForm::Short, 0, 0x0) => instruction_set::rtrue,
             (&OpForm::Short, 0, 0x1) => instruction_set::rfalse,
@@ -283,6 +284,8 @@ impl OpCode {
             }
         };
 
+        //warn now, since this is a valid instruction
+        warn!( "IP: {:x}", code.ip );
         code.instruction = instruction;
 
     }
