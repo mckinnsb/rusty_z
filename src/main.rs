@@ -1,7 +1,7 @@
 #![feature(drop_types_in_const)]
 
 //its a little strange FPS is a signed value, not
-//sure what - would mean?
+//sure what a negative value would mean?
 //
 //values larger than 1000 seem to have no effect
 //we might want to figure out a way to run more than one opcode

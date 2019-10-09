@@ -6,6 +6,7 @@ target/*
 *.bk
 *.txt
 
+log/*
 
 config.ru
 .sass-cache/

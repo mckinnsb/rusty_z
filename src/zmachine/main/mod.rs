@@ -765,6 +765,9 @@ impl<'a> ZMachine<'a> {
                                          handler: &mut InputHandler<T>,
                                          callback: Rc<Fn(String)>) {
 
+
+        info!("WAITING FOR COMMAND");
+
         let result = match handler.get_input() {
             Some(x) => {
                 callback(x);

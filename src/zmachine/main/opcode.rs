@@ -165,6 +165,112 @@ pub struct OpCode {
     pub result: u16,
 }
 
+fn return_name(code: &OpCode)-> &str {
+    let name = match (&code.form, code.operand_count, code.code) {
+        (&OpForm::Long, _, 0x0) |
+        (&OpForm::LongAsVariable, _, 0x0) => "debug",
+        (&OpForm::Long, _, 0x1) |
+        (&OpForm::LongAsVariable, _, 0x1) => "je",
+        (&OpForm::Long, _, 0x2) |
+        (&OpForm::LongAsVariable, _, 0x2) => "jl",
+        (&OpForm::Long, _, 0x3) |
+        (&OpForm::LongAsVariable, _, 0x3) => "jg",
+        (&OpForm::Long, _, 0x4) |
+        (&OpForm::LongAsVariable, _, 0x4) => "dec_chk",
+        (&OpForm::Long, _, 0x5) |
+        (&OpForm::LongAsVariable, _, 0x5) => "inc_chk",
+        (&OpForm::Long, _, 0x6) |
+        (&OpForm::LongAsVariable, _, 0x6) => "jin",
+        (&OpForm::Long, _, 0x7) |
+        (&OpForm::LongAsVariable, _, 0x7) => "test",
+        (&OpForm::Long, _, 0x8) |
+        (&OpForm::LongAsVariable, _, 0x8) => "or",
+        (&OpForm::Long, _, 0x9) |
+        (&OpForm::LongAsVariable, _, 0x9) => "and",
+        (&OpForm::Long, _, 0xA) |
+        (&OpForm::LongAsVariable, _, 0xA) => "test_attr",
+        (&OpForm::Long, _, 0xB) |
+        (&OpForm::LongAsVariable, _, 0xB) => "set_attr",
+        (&OpForm::Long, _, 0xC) |
+        (&OpForm::LongAsVariable, _, 0xC) => "clear_attr",
+        (&OpForm::Long, _, 0xD) |
+        (&OpForm::LongAsVariable, _, 0xD) => "store",
+        (&OpForm::Long, _, 0xE) |
+        (&OpForm::LongAsVariable, _, 0xE) => "insert_obj",
+        (&OpForm::Long, _, 0xF) |
+        (&OpForm::LongAsVariable, _, 0xF) => "loadw",
+        (&OpForm::Long, _, 0x10) |
+        (&OpForm::LongAsVariable, _, 0x10) => "loadb",
+        (&OpForm::Long, _, 0x11) |
+        (&OpForm::LongAsVariable, _, 0x11) => "get_prop",
+        (&OpForm::Long, _, 0x12) |
+        (&OpForm::LongAsVariable, _, 0x12) => "get_prop_addr",
+        (&OpForm::Long, _, 0x13) |
+        (&OpForm::LongAsVariable, _, 0x13) => "get_next_prop",
+        (&OpForm::Long, _, 0x14) |
+        (&OpForm::LongAsVariable, _, 0x14) => "add",
+        (&OpForm::Long, _, 0x15) |
+        (&OpForm::LongAsVariable, _, 0x15) => "sub",
+        (&OpForm::Long, _, 0x16) |
+        (&OpForm::LongAsVariable, _, 0x16) => "mul",
+        (&OpForm::Long, _, 0x17) |
+        (&OpForm::LongAsVariable, _, 0x17) => "div",
+        (&OpForm::Long, _, 0x18) |
+        (&OpForm::LongAsVariable, _, 0x18) => "mod_fn",
+        // 1 op
+        (&OpForm::Short, 1, 0x0) => "jz",
+        (&OpForm::Short, 1, 0x1) => "get_sibling",
+        (&OpForm::Short, 1, 0x2) => "get_child",
+        (&OpForm::Short, 1, 0x3) => "get_parent",
+        (&OpForm::Short, 1, 0x4) => "get_prop_len",
+        (&OpForm::Short, 1, 0x5) => "inc",
+        (&OpForm::Short, 1, 0x6) => "dec",
+        (&OpForm::Short, 1, 0x7) => "print_addr",
+        (&OpForm::Short, 1, 0x9) => "remove_obj",
+        (&OpForm::Short, 1, 0xA) => "print_obj",
+        (&OpForm::Short, 1, 0xB) => "ret",
+        (&OpForm::Short, 1, 0xC) => "jump",
+        (&OpForm::Short, 1, 0xD) => "print_paddr",
+        (&OpForm::Short, 1, 0xE) => "load",
+        // 0 op
+        (&OpForm::Short, 0, 0x0) => "rtrue",
+        (&OpForm::Short, 0, 0x1) => "rfalse",
+        (&OpForm::Short, 0, 0x2) => "print",
+        (&OpForm::Short, 0, 0x3) => "print_ret",
+        (&OpForm::Short, 0, 0x4) => "nop",
+        // these next two calls are illegal after version 5
+        (&OpForm::Short, 0, 0x5) => "save",
+        (&OpForm::Short, 0, 0x6) => "restore",
+        // still legal
+        (&OpForm::Short, 0, 0x7) => "restart",
+        (&OpForm::Short, 0, 0x8) => "ret_popped",
+        (&OpForm::Short, 0, 0x9) => "pop",
+        (&OpForm::Short, 0, 0xA) => "quit",
+        (&OpForm::Short, 0, 0xB) => "new_line",
+        (&OpForm::Short, 0, 0xC) => "show_status",
+        (&OpForm::Short, 0, 0xD) => "verify",
+        // variable op codes
+        (&OpForm::Variable, _, 0x0) => "call",
+        (&OpForm::Variable, _, 0x1) => "storew",
+        (&OpForm::Variable, _, 0x2) => "storeb",
+        (&OpForm::Variable, _, 0x3) => "put_prop",
+        (&OpForm::Variable, _, 0x4) => "sread",
+        (&OpForm::Variable, _, 0x5) => "print_char",
+        (&OpForm::Variable, _, 0x6) => "print_num",
+        (&OpForm::Variable, _, 0x7) => "random",
+        (&OpForm::Variable, _, 0x8) => "push",
+        (&OpForm::Variable, _, 0x9) => "pull",
+        (&OpForm::Variable, _, 0xA) => "split_window",
+        (&OpForm::Variable, _, 0xB) => "set_window",
+        (&OpForm::Variable, _, 0x13) => "output_stream",
+        (&OpForm::Variable, _, 0x14) => "input_stream",
+        (&OpForm::Variable, _, 0x15) => "sound_effect",
+        err @ _ => "illegal_operation"
+    };
+
+    return name;
+}
+
 impl OpCode {
     pub fn assign_instruction(code: &mut OpCode) {
 
@@ -526,6 +632,7 @@ impl OpCode {
 
     }
 
+
     fn null_instruction(code: &mut OpCode, env: &mut ZMachine) {
         // doooo nothin
     }
@@ -587,15 +694,17 @@ impl OpCode {
 impl fmt::Display for OpCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f,
-               "ip:{:x}\n form: {}\n opcode: {}\n operands:\n{}\n operand_count: {}\n",
+               "\n ip:{:x}\n form: {}\n opcode: {}\n operands:\n\n{}\n operand_count: {}\n branch: {}\n result: {}\n",
                self.ip,
                self.form,
-               self.code,
+               return_name(&self),
                format!("0: {},\n1: {},\n2: {},\n3: {}\n",
                        self.operands[0],
                        self.operands[1],
                        self.operands[2],
                        self.operands[3]),
-               self.operand_count)
+               self.operand_count,
+               self.branch,
+               self.result)
     }
 }
