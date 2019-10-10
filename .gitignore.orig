@@ -1,0 +1,19 @@
+external_tools/*
+target/*
+*.rlib
+*.cargo-lock
+*.sw*
+*.bk
+*.txt
+<<<<<<< HEAD
+log/
+=======
+
+log/*
+>>>>>>> adds code workspace and some more debugging info to track down this last bug
+
+config.ru
+.sass-cache/
+source/
+*.rb
+Gemfile*

@@ -78,9 +78,9 @@ impl<T: rand::SeedableRng<[u32; 4]>> RandomGen<T> {
                 // if s is 0, all future random numbers will be "really random"
                 // so we just generate a random number generator at random
                 0 => {
-                    [rand::thread_rng().gen::<u32>(), 
-                     rand::thread_rng().gen::<u32>(), 
-                     rand::thread_rng().gen::<u32>(), 
+                    [rand::thread_rng().gen::<u32>(),
+                     rand::thread_rng().gen::<u32>(),
+                     rand::thread_rng().gen::<u32>(),
                      rand::thread_rng().gen::<u32>()]
                 }
                 _ => {
@@ -113,7 +113,7 @@ impl<T: rand::SeedableRng<[u32; 4]>> RandomGen<T> {
             //bits will be lost, but its random
             //note that zmachine is actually inclusive in its range,
             //and, interestingly, no random may be 0..
-            
+
             self.generator.gen_range(1, range + 1)
         }
 
@@ -197,12 +197,12 @@ pub struct ZMachine<'a> {
     // of the stack frame before moving to the next ip,
     // and pop them to return
     //
-    // the zmachine spec says we don't have to implement it like this;
+    // the ZMachine spec says we don't have to implement it like this;
     // we can actually have a stack of addresses in memory and also
-    // a seperate memory stack if we want ( they are distinct concepts to
+    // a separate memory stack if we want ( they are distinct concepts to
     // interface with in the ZMachine ), but almost everyone and
-    // their mother implements it this way because its straightforward
-    // and mirrors "actual" stack frames. whatever that means.
+    // implements it this way because its straightforward
+    // and mirrors "actual" stack frames.
     pub call_stack: Stack,
 
     // document
@@ -296,9 +296,9 @@ impl<'a> ZMachine<'a> {
             ip: pc_start,
             memory: memory,
             random_generator: RandomGen {
-                generator: XorShiftRng::from_seed([rand::thread_rng().gen::<u32>(), 
-                                                   rand::thread_rng().gen::<u32>(), 
-                                                   rand::thread_rng().gen::<u32>(), 
+                generator: XorShiftRng::from_seed([rand::thread_rng().gen::<u32>(),
+                                                   rand::thread_rng().gen::<u32>(),
+                                                   rand::thread_rng().gen::<u32>(),
                                                    rand::thread_rng().gen::<u32>()]),
                 random_seed: 1,
                 randoms_predictable: false,
@@ -311,7 +311,7 @@ impl<'a> ZMachine<'a> {
         machine.pull_elements();
 
         machine
-        
+
     }
 
     #[cfg(not(target_os="emscripten"))]
@@ -338,16 +338,15 @@ impl<'a> ZMachine<'a> {
         // that never happens.
 
         if op_code.store {
-
             // we have to make a new view, here,
             // because we could have changed the pointer
             // after execute
 
             let view = self.get_frame_view();
             let destination = view.read_at_head(op_code.read_bytes);
+            info!("storing: {} at :{}", op_code.result, destination);
             self.store_variable(destination, op_code.result);
             op_code.read_bytes += 1
-
         }
 
         // if the op code branched or branches,
@@ -527,7 +526,7 @@ impl<'a> ZMachine<'a> {
                     }
 
                     //println!( "corrected fourteen bit is:{}", fourteen_bit );
-                    //println!( "converted fourteen bit is:{}", fourteen_bit as i16 );
+                    //println!( "converted fourteen bit is:{}", fourteen_bit as i16 ){
 
                     (false, fourteen_bit as i16)
 
@@ -572,7 +571,7 @@ impl<'a> ZMachine<'a> {
                 (_, x) => {
 
                     //println!("read at:{:x}", view.pointer + op_code.read_bytes);
-                    //println!("diff was:{}", x);
+                    //println!("diff was:{}", x){
 
                     let difference = (op_code.read_bytes as i16) + x + (branch_byte_offset as i16) -
                                      2;
@@ -626,13 +625,14 @@ impl<'a> ZMachine<'a> {
         // reference after we are done
         {
             let stack = &mut self.call_stack;
+
             // have the view.
             op_code.read_variables(view, globals, stack);
-        }
 
-        {
+            // print the opcode after resolution 
             ZMachine::print_op(&op_code);
         }
+
         //println!("{:x}", op_code.ip);
 
         self.execute_instruction(&mut op_code);
@@ -741,12 +741,27 @@ impl<'a> ZMachine<'a> {
     // this JUST reads a variable, but does not modify the stack in any way
     // its different from the opcode functions, which we may merge into zmachine,
     // or may not
-    pub fn read_variable(&self, address: u8) -> u16 {
+
+    // i thought this would be non-mutating at first but as it turns out, the
+    // stack (or stack pointer) is mutated by reading the stack pointer
+    pub fn read_variable(&mut self, address: u8) -> u16 {
         match address {
-            // 0, its the stack, read it and return
-            // in this case, we are not popping the stack because read_variable
-            // on zmachine does not "process" the stack in the way opcode does
-            0 => self.call_stack.stack[self.call_stack.stack.len() - 1],
+            // so it turns out that the stack does "pop" the value
+            // in most z-machine interpreters, but what is different is
+            // that the value is not deleted - it remains in the array
+            
+            // its possible some programs used "compiler wizardry"
+            // to optimize some things to access data that was already "popped"
+
+            // in that case I may not have much of an option but to re-think
+            // the data store behind the stack, i might need to switch to Array
+            // w/ a pointer
+
+            // 0, its the stack, pop it and return
+            0 => match self.call_stack.stack.pop() {
+                Some(value) => value,
+                None => panic!("stack underflow!")
+            },
             // 1 to 15, its a local
             i @ 0x01...0x0f => self.call_stack.get_local_variable(i),
             // 16 to 255, it's a global variable.

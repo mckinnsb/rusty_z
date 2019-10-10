@@ -56,7 +56,11 @@ pub enum Operand {
     LargeConstant { value: u16 },
     // the address itself is a byte, but the value is a u16,
     // we evaluate it before we store it here
-    Variable { value: u16 },
+
+    // address is mostly used for debugging, it's never really used directly
+    // since it is evaluated by the operand processor (get_operands())
+    // and the opcodes just deal with "real" values (i.e. not variables)
+    Variable { value: u16, address: u8 },
     SmallConstant { value: u8 },
     Omitted,
 }
@@ -65,9 +69,9 @@ impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
         let formatted = match self {
-            &Operand::LargeConstant { value } => format!("Large Constant: {:x}", value),
-            &Operand::SmallConstant { value } => format!("Small Constant: {:x}", value),
-            &Operand::Variable { value } => format!("Variable : {:x}", value),
+            &Operand::LargeConstant { value } => format!("Large Constant: {}:{:x}", value, value),
+            &Operand::SmallConstant { value } => format!("Small Constant: {}:{:x}", value, value),
+            &Operand::Variable { value, address } => format!("Variable#{} : {}:{:x}", address, value, value),
             &Operand::Omitted => format!("Omitted"),
         };
 
@@ -89,7 +93,7 @@ impl Operand {
             &Operand::Omitted => panic!("tried to get the value of an omitted operand!"),
             &Operand::SmallConstant { value } => value as u16,
             &Operand::LargeConstant { value } |
-            &Operand::Variable { value } => value,
+            &Operand::Variable { value, .. } => value,
         }
     }
 }
@@ -526,15 +530,15 @@ impl OpCode {
                 code.operands[0] = Operand::SmallConstant { value: 0 };
                 // should note that writing to "0" is writing to the stack
                 // pointer, so the default is to pull a variable from the stack
-                code.operands[1] = Operand::Variable { value: 0 };
+                code.operands[1] = Operand::Variable { value: 0, address: 0 };
             }
             0x40...0x5f => {
-                code.operands[0] = Operand::Variable { value: 0 };
+                code.operands[0] = Operand::Variable { value: 0, address: 0 };
                 code.operands[1] = Operand::SmallConstant { value: 0 };
             }
             0x60...0x7f => {
-                code.operands[0] = Operand::Variable { value: 0 };
-                code.operands[1] = Operand::Variable { value: 0 };
+                code.operands[0] = Operand::Variable { value: 0, address: 0 };
+                code.operands[1] = Operand::Variable { value: 0, address: 0 };
             }
             // this should not be reachable
             _ => unreachable!(),
@@ -563,7 +567,7 @@ impl OpCode {
             }
             0xa0...0xaf => {
                 code.operand_count = 1;
-                code.operands[0] = Operand::Variable { value: 0 };
+                code.operands[0] = Operand::Variable { value: 0, address: 0 };
             }
             0xbe => panic!("Extended opcodes not supported!"),
             0xb0...0xbd | 0xbf => {
@@ -619,17 +623,15 @@ impl OpCode {
     // this will be a 2-bit value, but we treat it as u8 because that's
     // probably the only reasonable value
     fn get_type_for_bit(type_bits: u8) -> Operand {
-
         let operand: Operand = match type_bits {
             0b00 => Operand::LargeConstant { value: 0 },
             0b01 => Operand::SmallConstant { value: 0 },
-            0b10 => Operand::Variable { value: 0 },
+            0b10 => Operand::Variable { value: 0, address: 0 },
             0b11 => Operand::Omitted {},
             _ => panic!("got something that was not two bytes!"),
         };
 
         operand
-
     }
 
 
@@ -657,9 +659,9 @@ impl OpCode {
                     *value = frame_view.read_at_head(self.read_bytes);
                     self.read_bytes += 1;
                 }
-                &mut Operand::Variable { ref mut value } => {
-
+                &mut Operand::Variable { ref mut value, ref mut address } => {
                     let addr = frame_view.read_at_head(self.read_bytes);
+                    *address = addr;
 
                     match addr {
                         // 0, its the stack, pop it and return

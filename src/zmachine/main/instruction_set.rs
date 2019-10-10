@@ -134,7 +134,9 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
                 machine.call_stack.stack.push(value as u16);
             }
             &Operand::LargeConstant { value } |
-            &Operand::Variable { value } => {
+            // note here that we are not evaluating the variable, so we push 
+            // the value
+            &Operand::Variable { value, .. } => {
                 num_args += 1;
                 machine.call_stack.stack.push(value);
             }
@@ -180,14 +182,12 @@ pub fn clear_attr(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn dec(code: &mut OpCode, machine: &mut ZMachine) {
-
     let variable = code.operands[0].get_value();
 
     let mut current = machine.read_variable(variable as u8) as i16;
     current -= 1;
 
     machine.write_variable_in_place(variable as u8, current as u16);
-
 }
 
 // dec check decrements a variable and branches if the variable is now
@@ -561,11 +561,22 @@ pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {
 
 }
 
-//this might be the easiest one
-//stores value in variable
+// this was not the easiest one
+
+// a lesson learned: sometimes the most simple
+// sounding functions are the most pernicious
+
+// this function actually only deals in variables,
+// even if the operand is a variable, it's understood to
+// be a double-dereferenced variable
+
+// so instead of just returning the value, we always read the
+// variable and return it
+
 pub fn load(code: &mut OpCode, machine: &mut ZMachine) {
     code.store = true;
-    code.result = code.operands[0].get_value();
+    let variable = code.operands[0].get_value();
+    code.result = machine.read_variable(variable as u8);
 }
 
 // this actually operates on the entirety of static + dynamic memory, and
@@ -896,15 +907,9 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
 // so we don't have to worry too much about modifying operands
 // to use ret ( 1-OP )
 pub fn ret_popped(code: &mut OpCode, machine: &mut ZMachine) {
-
-    let value = match machine.call_stack.stack.pop() {
-        Some(x) => x,
-        None => panic!("stack underflow!"),
-    };
-
+    let value = machine.read_variable(0);
     code.operands[0] = Operand::LargeConstant { value: value };
     ret(code, machine);
-
 }
 
 // return the value false
