@@ -1043,22 +1043,21 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
     let process_input = Rc::new(move |input: String| {
 
-        //println!( "got: {}", input );
-
-        // text and parse are addrs that indicate where
-
+        // text and parse are addresses that indicate where
         // the text should be filled with the text input
 
         // the parse-buffer, if non-zero, should be filled
         // with tokenized words from the text buffer that
         // match the dictionary
         //
-        // youll notice a slight difference between this
+        // you'll notice a slight difference between this
         // and the parse_buffer call - we want to avoid
         // splitting the string if the input is too large
 
         let mut cursor = text_buffer as u32;
         let max_length = view.read_at(cursor);
+        
+        info!("max length:{}", max_length);
 
         // we also don't write over the max length,
         // i believe that stays the same all game
@@ -1156,17 +1155,17 @@ fn sread_write_to_parse_buffer(view: &MemoryView,
     // write the word(token) count in the first byte of the parse buffer
     view.write_at(cursor, token_count as u8);
 
+
     // we write to this
     cursor += 1;
 
     // we need a mutable letter cursor for this double loop,
     // which indicates the start of the word in the sentence
     // rather than the place in memory
-
     let mut letter_cursor = 1;
 
     for word in words[0..token_count].iter() {
-
+        info!("encoding word: {}", word);
         let encoded_word = ZString::encode_word(word, version);
         let address: Option<u32> = sread_find_word_in_dictionary(&encoded_word, &dictionary_view);
 
@@ -1191,9 +1190,7 @@ fn sread_write_to_parse_buffer(view: &MemoryView,
 
         // increment the parse cursor by 4 bytes
         cursor += 4;
-
     }
-
 }
 
 // private helper function for sread, finds words in the dictionary

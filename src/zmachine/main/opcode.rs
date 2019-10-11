@@ -395,7 +395,7 @@ impl OpCode {
         };
 
         //warn now, since this is a valid instruction
-        warn!( "IP: {:x}", code.ip );
+        //warn!( "IP: {:x}", code.ip );
         code.instruction = instruction;
 
     }

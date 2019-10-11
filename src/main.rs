@@ -183,14 +183,14 @@ pub extern "C" fn main_loop() {
         let machina = machine.as_mut().unwrap();
 
         while let x @ MachineState::Running = machina.state.clone() {
-            warn!( "IP: {:x}", machina.current_ip() );
+            //warn!( "IP: {:x}", machina.current_ip() );
             machina.next_instruction();
         }
 
         match machina.state.clone() {
             MachineState::Restarting => {
                 machine = Some(ZMachine::new(data_buffer.as_ref().unwrap().clone()));
-                warn!( "IP: {:x}", machine.as_ref().unwrap().current_ip() );
+                //warn!( "IP: {:x}", machine.as_ref().unwrap().current_ip() );
                 machine.as_mut().unwrap().next_instruction();
             }
             MachineState::Stopped => process::exit(0),
@@ -215,13 +215,13 @@ fn set_loop() {
     let config = Config::builder().
         appender(Appender::builder().build("main", Box::new(logger))).
         appender(Appender::builder().build("expanded", Box::new(expanded))).
-        logger(Logger::builder().appender("expanded").additive(false).build("rusty_z::zmachine::main", LogLevelFilter::Info)).
+        logger(Logger::builder().appender("expanded").additive(false).build("rusty_z::zmachine", LogLevelFilter::Info)).
         build(Root::builder().appender("main").build(LogLevelFilter::Warn)).
         unwrap();
     
     let handle = log4rs::init_config(config).unwrap();
 
-    warn!( "log started" );
+    //warn!( "log started" );
 
     loop {
         main_loop();

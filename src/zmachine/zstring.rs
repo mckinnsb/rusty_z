@@ -338,6 +338,21 @@ impl ZString {
                 break;
             }
 
+            // this is a specific case where the last character added used a shift character,
+            // so we "jump" the exact equals
+
+            // the problem is, we need the length to be exactly what the dictionary expects
+            // or else the lookup tables 
+            // 
+            // instead of add that logic to each shift character, we just pop the last two
+            // characters off in that case
+
+            if cache.len() > len {
+                cache.pop();
+                cache.pop();
+                break;
+            }
+
             match ch { 
                 'a' => cache.push(0x6), 
                 'b' => cache.push(0x7), 
@@ -570,7 +585,7 @@ impl ZString {
                     cache.push(0x1F);
                 }
                 // this wont be a panic because im kind of interested
-                // to see if anything would be encoded thats not
+                // to see if anything would be encoded thats no,t
                 // in the above list
                 _ => {
                     println!("character not supported:{}", ch);
@@ -579,31 +594,39 @@ impl ZString {
 
         }
 
+        info!("before pad: {}", cache.len());
+
+
+        // pad the remainder of the string out with the z-character 5 (shift)
         if cache.len() < len {
             let remainder = len - cache.len();
             for _ in 0..remainder {
                 // println!("pushing");
-                // pad the remainder of the string out with shift characters
                 cache.push(0x5);
             }
         }
 
         let mut encoded: Vec<u8> = Vec::with_capacity(len / 3);
 
-        for chunk in cache.chunks(3) {
+        info!("after pad: {}", cache.len());
 
-            let (a, b, c) = (chunk[0] as u16, chunk[1] as u16, chunk[2] as u16);
+        // split into chunks of three letters each, and shift them 
+        // such that they fit in a single word (16bytes/5 bytes each)
+        for chunk in cache.chunks(3) {
+            let (a, b, c) = (chunk[0] as u16, 
+                             chunk[1] as u16, 
+                             chunk[2] as u16);
 
             let encoded_word = (a << 10) | (b << 5) | (c);
 
-            // println!( "encoded_word:{:b}", encoded_word );
+            // take the top and bottom half of the 16 bit word and push it to the
+            // byte stream.
 
             let uhalf = (encoded_word >> 8) as u8;
             let lhalf = (encoded_word) as u8;
 
             encoded.push(uhalf);
             encoded.push(lhalf);
-
         }
 
         let index = encoded.len();
@@ -651,6 +674,8 @@ impl ZString {
         match ch {
             // ascii
             0 => None,
+            9 => Some('\t'),
+            11 => Some(' '),
             13 => Some('\n'),
             c @ 32...126 => Some((c as u8) as char),
             155 => Some('ä'),
