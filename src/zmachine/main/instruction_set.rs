@@ -650,7 +650,8 @@ pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {
 
 pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {
     machine.print_to_main("Quitting.");
-    process::exit(0);
+    machine.state = MachineState::Stopped;
+    code.read_bytes = 0;
 }
 
 pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {
@@ -851,10 +852,8 @@ pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
-
     machine.state = MachineState::Restarting;
     code.read_bytes = 0;
-
 }
 
 // ret

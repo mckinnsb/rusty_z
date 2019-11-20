@@ -193,7 +193,9 @@ pub extern "C" fn main_loop() {
                 //warn!( "IP: {:x}", machine.as_ref().unwrap().current_ip() );
                 machine.as_mut().unwrap().next_instruction();
             }
-            MachineState::Stopped => process::exit(0),
+            MachineState::Stopped => {
+                quit();
+            },
             MachineState::TakingInput { ref callback } => {
                 machina.wait_for_input(handler.as_mut().unwrap(), callback.clone());
             },
@@ -203,6 +205,28 @@ pub extern "C" fn main_loop() {
 
     }
 }
+
+#[cfg(not(target_os="emscripten"))]
+fn quit() {
+    process::exit(0);
+}
+
+#[cfg(target_os="emscripten")]
+fn quit() {
+    // this is a no-op in emscripten because in our current version
+    // (webplatform, which is super old and we need to transition away from),
+    // we can't use EXIT_RUNTIME=1 (which allows a WASM program to end the WASM runtime)
+    //
+    // the issue here, i believe, is that normally, multiple WASM programs run 
+    // in the same runtime, and if you allow one of them to shut it down, you allow that 
+    // process to be able to end all other processes, and so this has to be explicit.
+    //
+    // so we just pause it.. forever.
+    unsafe {
+        webplatform::emscripten_pause_main_loop();
+    }
+}
+
 
 #[cfg(not(target_os="emscripten"))]
 fn set_loop() {
