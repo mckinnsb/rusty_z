@@ -929,7 +929,8 @@ pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn save(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    let string = "Save not supported.";
+    machine.print_to_main(&format!("{}", string));
 }
 
 // this sets a bit in the attributes table
