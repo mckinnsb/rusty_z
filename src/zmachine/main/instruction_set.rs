@@ -841,7 +841,13 @@ pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
-    unimplemented!();
+    //. we are pretending it failed.
+    code.branch = true;
+    code.result = 0;
+
+    let string = "Restore not supported. Nice try. ";
+
+    machine.print_to_main(&format!("{}", string));
 }
 
 pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
@@ -929,7 +935,12 @@ pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn save(code: &mut OpCode, machine: &mut ZMachine) {
-    let string = "Save not supported.";
+    //. we are pretending it succeeded.
+    code.branch = true;
+    code.result = 1;
+
+    let string = "Save not supported. Maybe next time. ";
+
     machine.print_to_main(&format!("{}", string));
 }
 
