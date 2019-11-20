@@ -1069,8 +1069,6 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
         let mut cursor = text_buffer as u32;
         let max_length = view.read_at(cursor);
         
-        info!("max length:{}", max_length);
-
         // we also don't write over the max length,
         // i believe that stays the same all game
 
@@ -1177,7 +1175,6 @@ fn sread_write_to_parse_buffer(view: &MemoryView,
     let mut letter_cursor = 1;
 
     for word in words[0..token_count].iter() {
-        info!("encoding word: {}", word);
         let encoded_word = ZString::encode_word(word, version);
         let address: Option<u32> = sread_find_word_in_dictionary(&encoded_word, &dictionary_view);
 

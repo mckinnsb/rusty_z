@@ -594,9 +594,6 @@ impl ZString {
 
         }
 
-        info!("before pad: {}", cache.len());
-
-
         // pad the remainder of the string out with the z-character 5 (shift)
         if cache.len() < len {
             let remainder = len - cache.len();
@@ -607,8 +604,6 @@ impl ZString {
         }
 
         let mut encoded: Vec<u8> = Vec::with_capacity(len / 3);
-
-        info!("after pad: {}", cache.len());
 
         // split into chunks of three letters each, and shift them 
         // such that they fit in a single word (16bytes/5 bytes each)

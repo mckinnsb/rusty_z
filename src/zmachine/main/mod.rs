@@ -344,7 +344,6 @@ impl<'a> ZMachine<'a> {
 
             let view = self.get_frame_view();
             let destination = view.read_at_head(op_code.read_bytes);
-            //info!("storing: {} at :{}", op_code.result, destination);
             self.store_variable(destination, op_code.result);
             op_code.read_bytes += 1
         }
@@ -645,7 +644,6 @@ impl<'a> ZMachine<'a> {
 
     #[cfg(not(target_os="emscripten"))]
     pub fn print_op( op_code: &OpCode ) {
-        //info!( "CODE:{}", op_code );
     }
 
     //print to main section , js
@@ -779,9 +777,6 @@ impl<'a> ZMachine<'a> {
     pub fn wait_for_input<T: LineReader>(&mut self,
                                          handler: &mut InputHandler<T>,
                                          callback: Rc<Fn(String)>) {
-
-
-        //info!("WAITING FOR COMMAND");
 
         let result = match handler.get_input() {
             Some(x) => {
