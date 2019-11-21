@@ -145,7 +145,7 @@ pub enum HeaderFlags {
 impl HeaderFlags {
     fn process_header(view: &MemoryView, version: u8) -> HeaderFlags {
         match version {
-            1...3 => HeaderFlags::process_v1_header(view),
+            1..=3 => HeaderFlags::process_v1_header(view),
             _ => panic!("This interpreter only supports up to ZMachine version 3 at this time."),
         }
     }

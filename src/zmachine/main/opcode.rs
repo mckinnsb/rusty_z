@@ -2,7 +2,6 @@
 
 use super::super::global_variables_view::*;
 use super::super::memory_view::*;
-use super::super::object_view::*;
 use super::instruction_set;
 use super::Stack;
 use super::ZMachine;
@@ -245,7 +244,7 @@ fn return_name(code: &OpCode) -> &str {
         (&OpForm::Variable, _, 0x13) => "output_stream",
         (&OpForm::Variable, _, 0x14) => "input_stream",
         (&OpForm::Variable, _, 0x15) => "sound_effect",
-        err @ _ => "illegal_operation",
+        _ => "illegal_operation",
     };
 
     return name;
@@ -395,13 +394,11 @@ impl OpCode {
 
             match word[0] {
                 // here, id is matched as the first byte, so we can access the opcode
-                0x00...0x7f => OpCode::form_long_opcode(code_ref, word[0]),
+                0x00..=0x7f => OpCode::form_long_opcode(code_ref, word[0]),
                 // the fallthrough for be , the code for extended opcodes,
                 // falls through in form_short_opcode
-                0x80...0xbf => OpCode::form_short_opcode(code_ref, word[0]),
-                0xc0...0xff => OpCode::form_variable_opcode(code_ref, word[0], word[1]),
-                // this should not be reachable
-                _ => unreachable!(),
+                0x80..=0xbf => OpCode::form_short_opcode(code_ref, word[0]),
+                0xc0..=0xff => OpCode::form_variable_opcode(code_ref, word[0], word[1])
             }
         }
 
@@ -481,11 +478,11 @@ impl OpCode {
         code.code = id & 0b00011111;
 
         match id {
-            0x00...0x1f => {
+            0x00..=0x1f => {
                 code.operands[0] = Operand::SmallConstant { value: 0 };
                 code.operands[1] = Operand::SmallConstant { value: 0 };
             }
-            0x20...0x3f => {
+            0x20..=0x3f => {
                 code.operands[0] = Operand::SmallConstant { value: 0 };
                 // should note that writing to "0" is writing to the stack
                 // pointer, so the default is to pull a variable from the stack
@@ -494,14 +491,14 @@ impl OpCode {
                     address: 0,
                 };
             }
-            0x40...0x5f => {
+            0x40..=0x5f => {
                 code.operands[0] = Operand::Variable {
                     value: 0,
                     address: 0,
                 };
                 code.operands[1] = Operand::SmallConstant { value: 0 };
             }
-            0x60...0x7f => {
+            0x60..=0x7f => {
                 code.operands[0] = Operand::Variable {
                     value: 0,
                     address: 0,
@@ -526,15 +523,15 @@ impl OpCode {
         code.code = id & 0b00001111;
 
         match id {
-            0x80...0x8f => {
+            0x80..=0x8f => {
                 code.operand_count = 1;
                 code.operands[0] = Operand::LargeConstant { value: 0 };
             }
-            0x90...0x9f => {
+            0x90..=0x9f => {
                 code.operand_count = 1;
                 code.operands[0] = Operand::SmallConstant { value: 0 };
             }
-            0xa0...0xaf => {
+            0xa0..=0xaf => {
                 code.operand_count = 1;
                 code.operands[0] = Operand::Variable {
                     value: 0,
@@ -542,7 +539,7 @@ impl OpCode {
                 };
             }
             0xbe => panic!("Extended opcodes not supported!"),
-            0xb0...0xbd | 0xbf => {
+            0xb0..=0xbd | 0xbf => {
                 code.operand_count = 0;
             }
             // this should not be reachable
@@ -559,7 +556,7 @@ impl OpCode {
         code.code = id & 0b00011111;
 
         match id {
-            0xc0...0xdf => {
+            0xc0..=0xdf => {
                 // this is a "long op encoded as a variable op"
                 // its basically a way to overcome the constraints
                 // of the long opcode... but im not entirely
@@ -567,7 +564,7 @@ impl OpCode {
                 // of the opcode table )
                 code.form = OpForm::LongAsVariable;
             }
-            0xe0...0xff => {
+            0xe0..=0xff => {
                 // this is a "true variable function"
                 code.form = OpForm::Variable;
             }
@@ -604,9 +601,8 @@ impl OpCode {
         operand
     }
 
-    fn null_instruction(code: &mut OpCode, env: &mut ZMachine) {
-        // doooo nothin
-    }
+    // It does what it says on the box!
+    fn null_instruction(_: &mut OpCode, _: &mut ZMachine) {}
 
     pub fn read_variables(
         &mut self,
@@ -645,14 +641,13 @@ impl OpCode {
                             }
                         }
                         // 1 to 15, its a local
-                        i @ 0x01...0x0f => *value = call_stack.get_local_variable(i),
+                        i @ 0x01..=0x0f => *value = call_stack.get_local_variable(i),
                         // 16 to 255, it's a global variable.
-                        global @ 0x10...0xff => {
+                        global @ 0x10..=0xff => {
                             // offset by 16 to get the global "index"
                             let index = global - 0x10;
                             *value = globals.read_global(index as u16)
                         }
-                        _ => unreachable!(),
                     }
 
                     self.read_bytes += 1;

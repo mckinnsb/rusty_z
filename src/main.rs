@@ -114,7 +114,7 @@ fn create_options<'a>() -> Option<InputConfiguration<'a>> {
 }
 
 #[cfg(not(target_os = "emscripten"))]
-fn input_handler(config: &InputConfiguration) -> InputHandler<std::io::Stdin> {
+fn input_handler(_: &InputConfiguration) -> InputHandler<std::io::Stdin> {
     let reader = std::io::stdin();
     InputHandler { reader: reader }
 }
@@ -155,15 +155,13 @@ pub extern "C" fn main_loop() {
     unsafe {
         let machina = MACHINE.as_mut().unwrap();
 
-        while let x @ MachineState::Running = machina.state.clone() {
-            //warn!( "IP: {:x}", machina.current_ip() );
+        while let MachineState::Running = machina.state.clone() {
             machina.next_instruction();
         }
 
         match machina.state.clone() {
             MachineState::Restarting => {
                 MACHINE = Some(ZMachine::new(DATA_BUFFER.as_ref().unwrap().clone()));
-                //warn!( "IP: {:x}", machine.as_ref().unwrap().current_ip() );
                 MACHINE.as_mut().unwrap().next_instruction();
             }
             MachineState::Stopped => {
@@ -217,7 +215,8 @@ fn set_loop() {
         )
         .build(Root::builder().appender("main").build(LogLevelFilter::Warn))
         .unwrap();
-    let handle = log4rs::init_config(config).unwrap();
+
+    log4rs::init_config(config).unwrap();
 
     //warn!( "log started" );
 

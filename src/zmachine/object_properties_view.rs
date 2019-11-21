@@ -1,5 +1,4 @@
 use super::memory_view::*;
-use super::object_view::*;
 
 pub struct ObjectProperty {
     pub value: u16,

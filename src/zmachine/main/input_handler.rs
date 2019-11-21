@@ -1,8 +1,5 @@
-use std::borrow::Borrow;
 use std::cell::*;
-use std::clone::Clone;
 use std::io::*;
-use std::rc::Rc;
 
 #[cfg(target_os = "emscripten")]
 extern crate webplatform;
@@ -18,7 +15,7 @@ impl LineReader for Stdin {
         match self.read_line(buf) {
             Ok(x) => Some(x),
             //discard the error
-            Err(e) => None,
+            Err(_) => None,
         }
     }
 }

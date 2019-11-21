@@ -4,7 +4,6 @@ pub mod opcode;
 
 extern crate rand;
 use self::rand::*;
-use std::time::SystemTime;
 
 #[cfg(not(target_os = "emscripten"))]
 extern crate termion;
@@ -26,7 +25,6 @@ use super::memory_view::*;
 use super::object_view::*;
 
 use std::cell::*;
-use std::io::*;
 use std::rc::*;
 
 #[cfg(target_os = "emscripten")]
@@ -37,6 +35,11 @@ pub struct ElementCache<'a> {
 
 //again: evil. evil evil evil
 //i have no intent to use this type
+
+// this just makes it so the two structs have the same 
+// signature/lifetime
+// @TODO: find a better way
+
 #[cfg(not(target_os = "emscripten"))]
 pub struct ElementCache<'a> {
     refer: Ref<'a, String>,
@@ -50,7 +53,7 @@ pub enum MachineState {
     Restarting,
     Running,
     // input finished takes ownership of the string
-    TakingInput { callback: Rc<Fn(String)> },
+    TakingInput { callback: Rc<dyn Fn(String)> },
 }
 
 pub struct RandomGen<T> {
@@ -192,9 +195,10 @@ pub struct ZMachine<'a> {
     // and mirrors "actual" stack frames.
     pub call_stack: Stack,
 
-    // document
+    // MORE EVIL
+    // These fields are ONLY used by the ZMachine in WASM
+    // Honestly there should probably be a "environment" enum that contains this info.
     document: Document<'a>,
-
     element_cache: Option<ElementCache<'a>>,
 
     // the header, which actually reads the first 64 bytes in memory
@@ -435,7 +439,7 @@ impl<'a> ZMachine<'a> {
         // calculate offset and object location
         // println!( "object id: {}", object_id );
 
-        let offset = ((object_id as u32 - 1) * object_length);
+        let offset = (object_id as u32 - 1) * object_length;
 
         let object_location =
             self.header.object_table_location as u32 + property_defaults_length as u32 + offset;
@@ -483,7 +487,7 @@ impl<'a> ZMachine<'a> {
             false => 2,
         };
 
-        if (branch) {
+        if branch {
             let offset: (bool, i16) = match one_bit {
                 // we have to mask against the control bits, here
                 //
@@ -611,10 +615,10 @@ impl<'a> ZMachine<'a> {
     }
 
     #[cfg(target_os = "emscripten")]
-    pub fn print_op(op_code: &OpCode) {}
+    pub fn print_op(_: &OpCode) {}
 
     #[cfg(not(target_os = "emscripten"))]
-    pub fn print_op(op_code: &OpCode) {}
+    pub fn print_op(_: &OpCode) {}
 
     //print to main section , js
     #[cfg(target_os = "emscripten")]
@@ -675,7 +679,6 @@ impl<'a> ZMachine<'a> {
         let margin_padding = "    ";
         let center_size = (x as usize) - left_side.len() - right_side.len() - 4 * 2;
         let center_padding: String = (0..center_size).into_iter().map(|_| " ").collect();
-        let offset_position = x - (right_side.len() as u16) - 4;
         let bottom = cursor::Goto(2, y);
 
         let header = format!(
@@ -735,13 +738,12 @@ impl<'a> ZMachine<'a> {
                 None => panic!("stack underflow!"),
             },
             // 1 to 15, its a local
-            i @ 0x01...0x0f => self.call_stack.get_local_variable(i),
+            i @ 0x01..=0x0f => self.call_stack.get_local_variable(i),
             // 16 to 255, it's a global variable.
-            global @ 0x10...0xff => {
+            global @ 0x10..=0xff => {
                 let index = global - 0x10;
                 self.get_global_variables_view().read_global(index as u16)
             }
-            _ => unreachable!(),
         }
     }
 
@@ -750,7 +752,7 @@ impl<'a> ZMachine<'a> {
     pub fn wait_for_input<T: LineReader>(
         &mut self,
         handler: &mut InputHandler<T>,
-        callback: Rc<Fn(String)>,
+        callback: Rc<dyn Fn(String)>,
     ) {
         let result = match handler.get_input() {
             Some(x) => {
@@ -784,14 +786,13 @@ impl<'a> ZMachine<'a> {
 
         match address {
             0 => self.call_stack.stack.push(value),
-            index @ 0x01...0x0f => self.call_stack.store_local_variable(index, value),
-            global @ 0x10...0xff => {
+            index @ 0x01..=0x0f => self.call_stack.store_local_variable(index, value),
+            global @ 0x10..=0xff => {
                 // offset by 16 to get the global "index"
                 let index = global - 0x10;
                 self.get_global_variables_view()
                     .write_global(index as u16, value);
             }
-            _ => unreachable!(),
         }
     }
 }

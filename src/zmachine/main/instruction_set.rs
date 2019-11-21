@@ -6,7 +6,6 @@ use super::super::object_view::ObjectView;
 use super::super::zstring::*;
 use super::opcode::*;
 use super::MachineState;
-use super::Stack;
 use super::ZMachine;
 
 use std::cmp;
@@ -14,7 +13,6 @@ use std::cmp;
 // for input flushing
 use std::io;
 use std::io::Write;
-use std::process;
 use std::str::SplitWhitespace;
 
 use std::rc::*;
@@ -40,7 +38,7 @@ use std::rc::*;
 // part of zmachine, but its really still an op
 // code, albiet a really effing powerful one,
 // and that would get awkward abstraction-wise
-pub fn and(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn and(code: &mut OpCode, _: &mut ZMachine) {
     code.store = true;
     code.result = code.operands[0].get_value() & code.operands[1].get_value();
     // done
@@ -51,7 +49,7 @@ pub fn and(code: &mut OpCode, machine: &mut ZMachine) {
 //
 // zmachine takes care of the 'storing' part
 
-pub fn add(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn add(code: &mut OpCode, _: &mut ZMachine) {
     code.store = true;
     code.result =
         ((code.operands[0].get_value() as i16) + (code.operands[1].get_value() as i16)) as u16;
@@ -62,7 +60,7 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     // move program counter
     // address is actually multiplied by a constant, depending on the version #
     // we just support 3 here, so it is always 2
-    let mut address = (code.operands[0].get_value() as u32) * 2;
+    let address = (code.operands[0].get_value() as u32) * 2;
 
     // println!("////////////// calling {:x}", address);
 
@@ -219,11 +217,11 @@ pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
 // 2) use it for debugging
 //
 // it's not a "no-op", strictly speaking, but for our purposes it is.
-pub fn debug(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn debug(_: &mut OpCode, _: &mut ZMachine) {}
 
 // signed division, should halt interpreter on divide by zero ( the inform
 // compiler should guarantee that never happens )
-pub fn div(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn div(code: &mut OpCode, _: &mut ZMachine) {
     code.store = true;
 
     let (dividend, divisor) = (code.operands[0].get_value(), code.operands[1].get_value());
@@ -379,7 +377,7 @@ pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {
     }
 }
 
-pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn input_stream(_: &mut OpCode, _: &mut ZMachine) {
     unimplemented!();
 }
 
@@ -436,7 +434,7 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
 //
 // some aspects of the design are kind of confusing, im wondering
 // if this was more for the lexer
-pub fn je(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn je(code: &mut OpCode, _: &mut ZMachine) {
     code.branch = true;
 
     // god i love rust, watch this
@@ -463,7 +461,7 @@ pub fn je(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 // this function jumps if greater than
-pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn jg(code: &mut OpCode, _: &mut ZMachine) {
     // casting between signed and unsigned values should be OK
     code.branch = true;
     code.result =
@@ -494,7 +492,7 @@ pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 // this function jumps if less than
-pub fn jl(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn jl(code: &mut OpCode, _: &mut ZMachine) {
     code.branch = true;
     code.result =
         ((code.operands[0].get_value() as i16) < (code.operands[1].get_value() as i16)) as u16;
@@ -525,7 +523,7 @@ pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {
     // done
 }
 
-pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn jz(code: &mut OpCode, _: &mut ZMachine) {
     code.branch = true;
     code.result = (code.operands[0].get_value() == 0) as u16;
     // println!( "result of jz:{}", code.result );
@@ -579,7 +577,7 @@ pub fn loadb(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 // signed multiplication
-pub fn mul(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn mul(code: &mut OpCode, _: &mut ZMachine) {
     code.store = true;
     code.result =
         ((code.operands[0].get_value() as i16) * (code.operands[1].get_value() as i16)) as u16;
@@ -587,27 +585,27 @@ pub fn mul(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 // signed modulo
-pub fn mod_fn(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn mod_fn(code: &mut OpCode, _: &mut ZMachine) {
     code.store = true;
     code.result =
         ((code.operands[0].get_value() as i16) % (code.operands[1].get_value() as i16)) as u16;
     // done
 }
 
-pub fn new_line(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn new_line(_: &mut OpCode, machine: &mut ZMachine) {
     machine.print_to_main("\n");
 }
 
 //uh... do nothing!
-pub fn nop(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn nop(_: &mut OpCode, _: &mut ZMachine) {}
 
-pub fn or(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn or(code: &mut OpCode, _: &mut ZMachine) {
     code.store = true;
     code.result = code.operands[0].get_value() | code.operands[1].get_value();
     // done
 }
 
-pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn output_stream(_: &mut OpCode, _: &mut ZMachine) {
     unimplemented!();
 }
 
@@ -617,7 +615,7 @@ pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {
     code.read_bytes = 0;
 }
 
-pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn pop(_: &mut OpCode, machine: &mut ZMachine) {
     machine.call_stack.stack.pop();
     //thats it
 }
@@ -692,7 +690,7 @@ pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
 }
 
 pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {
-    let num = (code.operands[0].get_value());
+    let num = code.operands[0].get_value();
     machine.print_to_main(&format!("{}", num as i16));
 }
 
@@ -893,11 +891,11 @@ pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {
     // done
 }
 
-pub fn set_window(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn set_window(_: &mut OpCode, _: &mut ZMachine) {
     unimplemented!();
 }
 
-pub fn sound_effect(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn sound_effect(_: &mut OpCode, _: &mut ZMachine) {
     unimplemented!();
 }
 
@@ -917,7 +915,7 @@ pub fn sound_effect(code: &mut OpCode, machine: &mut ZMachine) {
 // In Versions 1 to 3, a status line should be printed by the interpreter, as follows. In Version
 // 3, it must set bit 4 of 'Flags 1' in the header if it is unable to produce a status line.
 //
-pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn show_status(_: &mut OpCode, machine: &mut ZMachine) {
     // The short name of the object whose number is in the first global variable should be printed
     // on the left hand side of the line.
 
@@ -962,7 +960,7 @@ pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {
     }
 }
 
-pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn split_window(_: &mut OpCode, _: &mut ZMachine) {
     unimplemented!();
 }
 
@@ -970,7 +968,18 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
     //println!( "getting input" );
 
     show_status(code, machine);
-    io::stdout().flush();
+
+    // we might want to change where this is in the future, it seems like
+    // we might not want to rely on an opcode to flush the output - 
+    // this isn't necessary behavior for the ZMachine
+
+    // another thing to keep in mind is that this really only has an impact on
+    // the CLI version, there is no "output stream" in WASM
+
+    match io::stdout().flush() {
+        Err(_) => panic!("could not flush the output!"),
+        Ok(_) => ()
+    };
 
     let (text_buffer, parse_buffer) = (code.operands[0].get_value(), code.operands[1].get_value());
 
@@ -990,7 +999,6 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
     let view = machine.get_memory_view();
     let dictionary_view = machine.get_dictionary_view();
-    let abbreviations_view = machine.get_abbreviations_view();
     let version = machine.header.version;
 
     let process_input = Rc::new(move |input: String| {
@@ -1167,12 +1175,12 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
     let mut address = None;
     let mut lower = 0;
     let mut upper = dictionary_entries - 1;
-    let mut pointer = 0;
+    let mut pointer;
 
     while lower <= upper {
         pointer = lower + (upper - lower) / 2;
         let offset = dictionary_header_offset + pointer * entry_length;
-        let mut found: bool = false;
+        let found: bool;
 
         // we need to both pull the encoded value out of the enum,
         // and the entry from the table itself, because if there
@@ -1182,7 +1190,7 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
         // note that in the future these will probably need to be vecs,
         // because the match arms wont match types when v4 is implemented
 
-        let (mut encoded_string, mut dictionary_entry) = match string {
+        let (encoded_string, dictionary_entry) = match string {
             // we can "move" encoded out of zword here, because it has the copy trait
             // as an array of u8s
             &ZWord::V3 { encoded, .. } => {
@@ -1232,7 +1240,7 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
             })
             .collect::<Vec<u64>>();
 
-        let (mut encoded, mut encoded_entry) = (encode_map[0], encode_map[1]);
+        let (encoded, encoded_entry) = (encode_map[0], encode_map[1]);
 
         // the ordering of the table corresponds to dictionary ordering,
         // and is sorted
@@ -1287,13 +1295,13 @@ pub fn storew(code: &mut OpCode, machine: &mut ZMachine) {
     // must have been an design reason
 }
 
-pub fn sub(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn sub(code: &mut OpCode, _: &mut ZMachine) {
     code.store = true;
     code.result =
         ((code.operands[0].get_value() as i16) - (code.operands[1].get_value() as i16)) as u16;
 }
 
-pub fn test(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn test(code: &mut OpCode, _: &mut ZMachine) {
     code.branch = true;
 
     let (mask, flags) = (code.operands[0].get_value(), code.operands[1].get_value());
@@ -1341,7 +1349,7 @@ fn unparent_object(obj_view: &mut ObjectView, machine: &mut ZMachine) {
     } else {
         // 2), if not first childk, progress through children until child is found, then
         // set previous child to child's sibling
-        let mut last_child = current_child;
+        let mut last_child;
 
         loop {
             last_child = current_child;
@@ -1364,19 +1372,21 @@ fn unparent_object(obj_view: &mut ObjectView, machine: &mut ZMachine) {
     }
 }
 
-//checksum always passes, for now
+// Checksum always passes, for now
 //
-//this was used for piracy and fidelity reasons;
-//these days? not sure what it could really be used for
-//i don't know of any games that actually use it for a game purpose
+// This was used for piracy and fidelity reasons;
+// but these days? I'm not sure what the benefit of implementing it would be.
+
+// I don't know of any games that actually use it for a game purpose,
+// and modified story files are so common these days - with different checksums -
+// that there's no real "verifying" an original - whats the point, if a user wants to play
+// it, let them.
 //
-//it would literally have to be a programming game or something, that
-//involved creating a checksum
-//
-//so, we aren't going to bother here. if the story file is tampered with
-//whatever, if it is tampered to the point of breaking, its going to crash
-//anyway
-pub fn verify(code: &mut OpCode, machine: &mut ZMachine) {
+// So, we aren't going to bother here. if the story file is tampered with
+// whatever, if it is tampered to the point of breaking, its going to crash
+// anyway.
+
+pub fn verify(code: &mut OpCode, _: &mut ZMachine) {
     code.branch = true;
     code.result = 1;
 }

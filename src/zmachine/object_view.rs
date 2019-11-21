@@ -1,7 +1,5 @@
 use super::memory_view::*;
 use super::object_properties_view::*;
-use std::cell::RefCell;
-use std::rc::*;
 
 // this wraps a memory view and is specifically
 // for the object table in the zmachine
@@ -10,8 +8,6 @@ use std::rc::*;
 //
 // this is the size of the addr of the properties pointer
 // technically it can be anywhere in dynamic memory
-
-const properties_length: u32 = 2;
 
 pub struct ObjectView {
     pub object_id: u16,
@@ -80,7 +76,7 @@ impl ObjectView {
         // this will also have to change with the new version
         // v4 may have up to 48
         match attribute {
-            i @ 0...31 => {
+            i @ 0..=31 => {
                 ObjectView::is_bit_set_in_u32((31 - i) as u8, self.view.read_u32_at_head(0))
             }
             _ => panic!("attempt to read an invalid attribute"),
@@ -134,7 +130,7 @@ impl ObjectView {
         // this will also have to change with the new version
         // v4 may have up to 48
         match attribute {
-            i @ 0...31 => {
+            i @ 0..=31 => {
                 let new_attr_mask = self.view.read_u32_at_head(0) | (1 << (31 - i as u32));
                 self.view.write_u32_at_head(0, new_attr_mask);
             }
@@ -146,7 +142,7 @@ impl ObjectView {
         // this will also have to change with the new version
         // v4 may have up to 48
         match attribute {
-            i @ 0...31 => {
+            i @ 0..=31 => {
                 let new_attr_mask = self.view.read_u32_at_head(0) & !(1 << (31 - i as u32));
                 self.view.write_u32_at_head(0, new_attr_mask);
             }
