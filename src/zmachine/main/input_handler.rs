@@ -1,10 +1,9 @@
-use std::cell::*;
 use std::io::*;
+use std::cell::*;
+use std::rc::*;
 
 #[cfg(target_os = "emscripten")]
-extern crate webplatform;
-#[cfg(target_os = "emscripten")]
-use self::webplatform::*;
+extern crate stdweb;
 
 pub trait LineReader {
     fn read_next_line(&mut self, buf: &mut String) -> Option<usize>;
@@ -24,36 +23,12 @@ pub struct InputHandler<T: LineReader> {
     pub reader: T,
 }
 
-//im not sure how i feel about this right now;
-//so this enum has two forms, one has a lifetime,
-//one does not, but this means that all forms
-//of this enum have to be treated as if they have
-//lifetimes. no big deal - we use this at the top
-//of the main loop, so this should survive for a while
-//
-//this sort of solves the problem of having different
-//polymorphic inputs given different configurations,
-//without having to load both libs on both targets
-//( particularly problematic with emscripten, since lots of crates
-//  don't even work - i doubt termion would compile ).
 
-pub enum InputConfiguration<'a> {
+// we are going to change it so the emscriptem version outputs to a stream; 
+// it's no longer going to pull an html element from the page
+pub enum InputConfiguration {
     Standard,
-    HTMLDocument {
-        html_doc: Document<'a>,
-        form_selector: String,
-        input_selector: String,
-    },
-}
-
-//this is PURE evil
-//we are basically mocking out a type provided by emscripten to allow
-//for the enum above to be used
-
-#[cfg(not(target_os = "emscripten"))]
-pub struct Document<'a> {
-    //i just picked this, it could be any type with a lifetime
-    pub refer: Option<Ref<'a, String>>,
+    HTMLDocument
 }
 
 pub struct WebInputIndicator {
@@ -61,12 +36,7 @@ pub struct WebInputIndicator {
 }
 
 #[cfg(target_os = "emscripten")]
-pub struct WebReader<'a> {
-    pub form: HtmlNode<'a>,
-    pub player_input: HtmlNode<'a>,
-    pub current_input: String,
-    pub initialized: bool,
-
+pub struct WebReader {
     //we need a bit of shared, mutable state between the callback
     //and the reader; the object needs to be shared and available
     //on the heap, so Rc<RefCell> it is
@@ -74,16 +44,29 @@ pub struct WebReader<'a> {
 }
 
 #[cfg(target_os = "emscripten")]
-impl<'a> LineReader for WebReader<'a> {
-    fn read_next_line(&mut self, buf: &mut String) -> Option<usize> {
+impl LineReader for WebReader {
+    fn read_next_line(&mut self, _: &mut String) -> Option<usize> {
+
         //i have no idea why i have to do it this way -
         //in memory view we just use borrow and borrow_mut -
         //wondering if its the underlying data type (my own struct vs. vec)
+
+        return None;
+
+        /*
+         * it's likely we will still need this mutex-like structure
+         
         let input_sent = {
             let indicator: &RefCell<WebInputIndicator> = self.indicator.borrow();
             indicator.borrow().input_sent
         };
 
+         */
+
+
+        /* 
+         * but using this is kind of unlikely
+         
         match (self.initialized, input_sent) {
             (true, true) => {
                 self.indicator.borrow_mut().input_sent = false;
@@ -112,6 +95,8 @@ impl<'a> LineReader for WebReader<'a> {
                 None
             }
         }
+
+        */
     }
 }
 

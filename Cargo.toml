@@ -8,8 +8,8 @@ rand = "0.3.15"
 log = "0.3.6"
 log4rs = "0.5.2"
 
-[dependencies.webplatform]
-git = "https://github.com/tcr/rust-webplatform"
+[target.'cfg(target_os="emscripten")'.dependencies]
+stdweb = "0.4.20"
  
 [target.'cfg(not(target_os="emscripten"))'.dependencies]
 termion = "1.1.4"

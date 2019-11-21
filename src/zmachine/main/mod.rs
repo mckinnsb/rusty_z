@@ -11,9 +11,7 @@ extern crate termion;
 use self::termion::{clear, color, cursor, style};
 
 #[cfg(target_os = "emscripten")]
-extern crate webplatform;
-#[cfg(target_os = "emscripten")]
-use self::webplatform::*;
+extern crate stdweb;
 
 use self::input_handler::*;
 use self::opcode::*;
@@ -26,24 +24,6 @@ use super::object_view::*;
 
 use std::cell::*;
 use std::rc::*;
-
-#[cfg(target_os = "emscripten")]
-pub struct ElementCache<'a> {
-    score: HtmlNode<'a>,
-    window: HtmlNode<'a>,
-}
-
-//again: evil. evil evil evil
-//i have no intent to use this type
-
-// this just makes it so the two structs have the same 
-// signature/lifetime
-// @TODO: find a better way
-
-#[cfg(not(target_os = "emscripten"))]
-pub struct ElementCache<'a> {
-    refer: Ref<'a, String>,
-}
 
 // once this is a FnMut or FnOnce, I don't think we
 // can clone it anymore.
@@ -178,7 +158,7 @@ impl Stack {
     }
 }
 
-pub struct ZMachine<'a> {
+pub struct ZMachine {
     // the call stack, which are 2-byte words (u16)
     //
     // this also mixes in the local stack,
@@ -194,12 +174,6 @@ pub struct ZMachine<'a> {
     // implements it this way because its straightforward
     // and mirrors "actual" stack frames.
     pub call_stack: Stack,
-
-    // MORE EVIL
-    // These fields are ONLY used by the ZMachine in WASM
-    // Honestly there should probably be a "environment" enum that contains this info.
-    document: Document<'a>,
-    element_cache: Option<ElementCache<'a>>,
 
     // the header, which actually reads the first 64 bytes in memory
     // everyone has access to it, its mostly configuration stuff
@@ -237,9 +211,9 @@ pub struct ZMachine<'a> {
     pub state: MachineState,
 }
 
-impl<'a> ZMachine<'a> {
+impl ZMachine {
     //creates a new zmachine from the data given
-    pub fn new(data: Vec<u8>) -> ZMachine<'a> {
+    pub fn new(data: Vec<u8>) -> ZMachine {
         // we have to create an immutably reference
         // counted mutable reference in order to
         //
@@ -275,13 +249,11 @@ impl<'a> ZMachine<'a> {
 
         let pc_start = header.pc_start as u32;
 
-        let mut machine = ZMachine {
+        let machine = ZMachine {
             call_stack: Stack {
                 top_of_frame: 0,
                 stack: Vec::new(),
             },
-            document: ZMachine::get_document(),
-            element_cache: None,
             header: header,
             ip: pc_start,
             memory: memory,
@@ -300,8 +272,6 @@ impl<'a> ZMachine<'a> {
         };
 
         //does nothing in desktop
-        machine.pull_elements();
-
         machine
     }
 
@@ -351,16 +321,6 @@ impl<'a> ZMachine<'a> {
                 self.ip += op_code.read_bytes;
             }
         }
-    }
-
-    #[cfg(target_os = "emscripten")]
-    fn get_document() -> Document<'a> {
-        webplatform::init()
-    }
-
-    #[cfg(not(target_os = "emscripten"))]
-    fn get_document() -> Document<'a> {
-        Document { refer: None }
     }
 
     pub fn get_version(&self) -> u8 {
@@ -622,38 +582,14 @@ impl<'a> ZMachine<'a> {
 
     //print to main section , js
     #[cfg(target_os = "emscripten")]
-    pub fn print_to_main(&mut self, string: &str) {
-        //this is hardcoded, because, i can't bear to put anything more
-        //on zmachine. not today.
-        //
-        //also if this isn't found - go ahead and panic
-        //
-        //you know, i was always REALLY curious why the newline character doesn't
-        //actually create a new line in the browser display. it clearly does
-        //in the HTML output - you can see the demarcations.
-
-        let new_string = string.replace("\n", "<br/>");
-        self.element_cache
-            .as_mut()
-            .unwrap()
-            .window
-            .html_append(&new_string);
+    pub fn print_to_main(&mut self, _: &str) {
+        // replace with updating state
     }
 
     //print to header , js
     #[cfg(target_os = "emscripten")]
-    pub fn print_to_header(&mut self, left_side: &str, right_side: &str) {
-        let left = format!("<div style='float:left;'>{}</div>", left_side);
-        let right = format!("<div style='float:right;'>{}</div>", right_side);
-        let combined = format!("{}{}", left, right);
-
-        //this is hardcoded, because, i can't bear to put anything more
-        //on zmachine. not today.
-        self.element_cache
-            .as_mut()
-            .unwrap()
-            .score
-            .html_set(&combined);
+    pub fn print_to_header(&mut self, _: &str, _: &str) {
+        // replace with updating state
     }
 
     //print to main section, desktop
@@ -699,19 +635,6 @@ impl<'a> ZMachine<'a> {
 
         print!("{}", header);
     }
-
-    //print to main section, desktop
-    #[cfg(target_os = "emscripten")]
-    pub fn pull_elements(&mut self) {
-        self.element_cache = Some(ElementCache {
-            score: self.document.element_query("#header").unwrap(),
-            window: self.document.element_query("#content").unwrap(),
-        });
-    }
-
-    //print to main section, desktop
-    #[cfg(not(target_os = "emscripten"))]
-    pub fn pull_elements(&mut self) {}
 
     // this JUST reads a variable, but does not modify the stack in any way
     // its different from the opcode functions, which we may merge into zmachine,
