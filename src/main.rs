@@ -67,7 +67,7 @@ fn main() {
     //
     // we could probably split this out later using CFG to
     // lower the size of the desktop binary
-    let data = include_bytes!("../zork2.z5");
+    let data = include_bytes!("../Zork1.dat");
 
     // we then get a reference to that static string as a slice
     let data_ref: &[u8] = &data[..];
