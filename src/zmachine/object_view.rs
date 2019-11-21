@@ -1,7 +1,7 @@
-use std::rc::*;
-use std::cell::RefCell;
 use super::memory_view::*;
 use super::object_properties_view::*;
+use std::cell::RefCell;
+use std::rc::*;
 
 // this wraps a memory view and is specifically
 // for the object table in the zmachine
@@ -33,7 +33,6 @@ impl ObjectView {
     // an object can have only one child - everything else in the "bag" is a sibling
     // of the child
     pub fn get_child(&self) -> u16 {
-
         // first we start from the beginning of the object table
         // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length +
@@ -42,22 +41,18 @@ impl ObjectView {
 
         let child_id = self.view.read_at_head(pointer_position);
         child_id as u16
-
     }
 
     pub fn get_parent(&self) -> u16 {
-
         // first we start from the beginning of the object table
         // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length;
         let parent_id = self.view.read_at_head(pointer_position);
 
         parent_id as u16
-
     }
 
     pub fn get_sibling(&self) -> u16 {
-
         // first we start from the beginning of the object table
         // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length +
@@ -66,11 +61,9 @@ impl ObjectView {
 
         let sibling_id = self.view.read_at_head(pointer_position);
         sibling_id as u16
-
     }
 
     pub fn get_properties_table_view(&self) -> ObjectPropertiesView {
-
         // println!("starting: {}", self.view.pointer);
         // first we start from the beginning of the object table
         // then offset by attribute length + all relatives length
@@ -81,7 +74,6 @@ impl ObjectView {
         let pointer = self.view.read_u16_at_head(pointer_position) as u32;
 
         ObjectPropertiesView::create(self.object_id, pointer, &self.defaults_view, &self.view)
-
     }
 
     pub fn has_attribute(&self, attribute: u16) -> bool {
@@ -115,7 +107,6 @@ impl ObjectView {
                                self.related_obj_length * 2;
 
         self.view.write_at_head(pointer_position, child_id as u8);
-
     }
 
     pub fn set_parent(&self, parent_id: u16) {
@@ -126,7 +117,6 @@ impl ObjectView {
         // so parent has no relative offset after attributes
 
         self.view.write_at_head(pointer_position, parent_id as u8);
-
     }
 
     pub fn set_sibling(&self, sibling_id: u16) {
@@ -138,7 +128,6 @@ impl ObjectView {
         // so parent has no relative offset after attributes
 
         self.view.write_at_head(pointer_position, sibling_id as u8);
-
     }
 
     pub fn set_attribute(&self, attribute: u16) {
@@ -151,7 +140,6 @@ impl ObjectView {
             }
             _ => panic!("attempt to read an invalid attribute"),
         }
-
     }
 
     pub fn unset_attribute(&self, attribute: u16) {
@@ -164,6 +152,5 @@ impl ObjectView {
             }
             _ => panic!("attempt to read an invalid attribute"),
         }
-
     }
 }

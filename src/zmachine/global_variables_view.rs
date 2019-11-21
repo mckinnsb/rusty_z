@@ -15,13 +15,10 @@ impl GlobalVariablesView {
         let result = self.view.read_u16_at_head(offset as u32);
 
         result
-
     }
 
     pub fn write_global(&self, index: u16, value: u16) {
-
         let offset = index * 2;
         self.view.write_u16_at_head(offset as u32, value);
-
     }
 }

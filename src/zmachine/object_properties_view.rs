@@ -6,8 +6,7 @@ pub struct ObjectProperty {
     pub info: ObjectPropertyInfo,
 }
 
-#[derive(Clone)]
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub struct ObjectPropertyInfo {
     // this is an option, because if not found, it will be none
     pub addr: Option<u32>,
@@ -28,12 +27,12 @@ pub struct ObjectPropertiesView {
 }
 
 impl ObjectPropertiesView {
-    pub fn create(object_id: u16,
-                  pointer_position: u32,
-                  defaults_view: &MemoryView,
-                  memory: &MemoryView)
-                  -> ObjectPropertiesView {
-
+    pub fn create(
+        object_id: u16,
+        pointer_position: u32,
+        defaults_view: &MemoryView,
+        memory: &MemoryView,
+    ) -> ObjectPropertiesView {
         let mut view = memory.clone();
         view.pointer = pointer_position;
 
@@ -45,7 +44,6 @@ impl ObjectPropertiesView {
             text_size: text_size,
             view: view,
         }
-
     }
 
     pub fn get_object_property_from_size_byte(size_byte: u8) -> ObjectPropertyInfo {
@@ -70,7 +68,6 @@ impl ObjectPropertiesView {
 
     // gets the property info, which includes address, size, and id
     pub fn get_property_info(&self, property_index: u8) -> ObjectPropertyInfo {
-
         // we skip the text and the text size byte
         let mut pointer_cursor = 2 * (self.text_size as u32) + 1;
 
@@ -83,7 +80,6 @@ impl ObjectPropertiesView {
         let find_first = property_index == 0;
 
         loop {
-
             let size_byte = self.view.read_at_head(pointer_cursor);
 
             // terminate on size byte of 0
@@ -100,23 +96,21 @@ impl ObjectPropertiesView {
             }
 
             pointer_cursor += (found_info.size as u32) + 1;
-
         }
 
         info
-
     }
 
     // gets the property default for this property
     pub fn get_property_default(&self, property_index: u8) -> u16 {
-        self.defaults_view.read_u16_at_head((property_index as u32 - 1) * 2)
+        self.defaults_view
+            .read_u16_at_head((property_index as u32 - 1) * 2)
     }
 
     // note that this is a little inefficient. but whatever
     // if this really ends up being a performance problem, we can come back to it
     // this will return the default value if the property is not found
     pub fn get_property(&self, property_index: u8) -> ObjectProperty {
-
         let info = self.get_property_info(property_index);
 
         let value = match info.addr {
@@ -124,37 +118,32 @@ impl ObjectPropertiesView {
                 // println!( "reading default for:{}", property_index );
                 self.get_property_default(property_index)
             }
-            Some(addr) => {
-                match info.size {
-                    1 => self.view.read_at_head(addr) as u16,
-                    2 => self.view.read_u16_at_head(addr),
-                    _ => {
-                        panic!("you have an address but no size, or are trying to read a property \
-                                of length > 2")
-                    }
-                }
-            }
+            Some(addr) => match info.size {
+                1 => self.view.read_at_head(addr) as u16,
+                2 => self.view.read_u16_at_head(addr),
+                _ => panic!(
+                    "you have an address but no size, or are trying to read a property \
+                     of length > 2"
+                ),
+            },
         };
 
         ObjectProperty {
             info: info,
             value: value,
         }
-
     }
 
     pub fn write_property(&self, property_index: u8, value: u16) {
-
         let info = self.get_property_info(property_index);
 
         match (info.size, info.addr) {
             (1, Some(addr)) => self.view.write_at_head(addr, value as u8),
             (2, Some(addr)) => self.view.write_u16_at_head(addr, value),
-            _ => {
-                panic!("you are attempting to write a property to memory that is greater than 2 \
-                        bytes, or doesnt exist")
-            }
+            _ => panic!(
+                "you are attempting to write a property to memory that is greater than 2 \
+                 bytes, or doesnt exist"
+            ),
         }
-
     }
 }

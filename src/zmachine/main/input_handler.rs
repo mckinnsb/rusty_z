@@ -1,12 +1,12 @@
+use std::borrow::Borrow;
+use std::cell::*;
+use std::clone::Clone;
 use std::io::*;
 use std::rc::Rc;
-use std::cell::*;
-use std::borrow::Borrow;
-use std::clone::Clone;
 
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 extern crate webplatform;
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 use self::webplatform::*;
 
 pub trait LineReader {
@@ -53,7 +53,7 @@ pub enum InputConfiguration<'a> {
 //we are basically mocking out a type provided by emscripten to allow
 //for the enum above to be used
 
-#[cfg(not(target_os="emscripten"))]
+#[cfg(not(target_os = "emscripten"))]
 pub struct Document<'a> {
     //i just picked this, it could be any type with a lifetime
     pub refer: Option<Ref<'a, String>>,
@@ -63,8 +63,7 @@ pub struct WebInputIndicator {
     pub input_sent: bool,
 }
 
-
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 pub struct WebReader<'a> {
     pub form: HtmlNode<'a>,
     pub player_input: HtmlNode<'a>,
@@ -77,10 +76,9 @@ pub struct WebReader<'a> {
     pub indicator: Rc<RefCell<WebInputIndicator>>,
 }
 
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 impl<'a> LineReader for WebReader<'a> {
     fn read_next_line(&mut self, buf: &mut String) -> Option<usize> {
-
         //i have no idea why i have to do it this way -
         //in memory view we just use borrow and borrow_mut -
         //wondering if its the underlying data type (my own struct vs. vec)
@@ -90,48 +88,38 @@ impl<'a> LineReader for WebReader<'a> {
         };
 
         match (self.initialized, input_sent) {
-
             (true, true) => {
-
                 self.indicator.borrow_mut().input_sent = false;
 
                 self.current_input = self.player_input.data_get("value").unwrap();
 
                 buf.push_str(&self.current_input);
                 Some(buf.len())
-
             }
 
             (false, _) => {
-
                 self.initialized = true;
 
                 let indicator = self.indicator.clone();
 
-                self.form.on("submit",
-                             move |_| { indicator.borrow_mut().input_sent = true; });
+                self.form.on("submit", move |_| {
+                    indicator.borrow_mut().input_sent = true;
+                });
 
                 None
-
             }
 
             _ => {
-
                 //focus!
                 self.player_input.focus();
                 None
-
             }
-
         }
-
     }
 }
 
-
 impl<T: LineReader> InputHandler<T> {
     pub fn get_input(&mut self) -> Option<String> {
-
         // 64 characters is probably a pretty reasonable start
         let mut input = String::with_capacity(64);
         let result = self.reader.read_next_line(&mut input);
@@ -154,6 +142,5 @@ impl<T: LineReader> InputHandler<T> {
         //htmlevent (submits on return)
         //warn!( "READ INPUT:{}", input );
         Some(input)
-
     }
 }

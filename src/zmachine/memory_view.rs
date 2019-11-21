@@ -1,5 +1,5 @@
-use std::rc::*;
 use std::cell::RefCell;
+use std::rc::*;
 
 // a "view" into environment memory. mostly used to split off the memory
 // from zmachine so we can give the memory and stack in different states

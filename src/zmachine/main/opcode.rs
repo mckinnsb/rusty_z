@@ -1,12 +1,12 @@
 // opcode struct
 
-use std::fmt;
-use super::instruction_set;
+use super::super::global_variables_view::*;
 use super::super::memory_view::*;
 use super::super::object_view::*;
-use super::super::global_variables_view::*;
-use super::ZMachine;
+use super::instruction_set;
 use super::Stack;
+use super::ZMachine;
+use std::fmt;
 
 // the "form" of the opcode, which dictates how the first byte(s) are read,
 //
@@ -31,14 +31,16 @@ pub enum OpForm {
 
 impl fmt::Display for OpForm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "{}",
-               match self {
-                   &OpForm::Short => "Short",
-                   &OpForm::Long => "Long",
-                   &OpForm::LongAsVariable => "Long as Variable",
-                   &OpForm::Variable => "Variable",
-               })
+        write!(
+            f,
+            "{}",
+            match self {
+                &OpForm::Short => "Short",
+                &OpForm::Long => "Long",
+                &OpForm::LongAsVariable => "Long as Variable",
+                &OpForm::Variable => "Variable",
+            }
+        )
     }
 }
 
@@ -67,16 +69,16 @@ pub enum Operand {
 
 impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-
         let formatted = match self {
             &Operand::LargeConstant { value } => format!("Large Constant: {}:{:x}", value, value),
             &Operand::SmallConstant { value } => format!("Small Constant: {}:{:x}", value, value),
-            &Operand::Variable { value, address } => format!("Variable#{} : {}:{:x}", address, value, value),
+            &Operand::Variable { value, address } => {
+                format!("Variable#{} : {}:{:x}", address, value, value)
+            }
             &Operand::Omitted => format!("Omitted"),
         };
 
         write!(f, "{}", formatted)
-
     }
 }
 
@@ -92,8 +94,7 @@ impl Operand {
             // not 100% if this is a good idea at this point
             &Operand::Omitted => panic!("tried to get the value of an omitted operand!"),
             &Operand::SmallConstant { value } => value as u16,
-            &Operand::LargeConstant { value } |
-            &Operand::Variable { value, .. } => value,
+            &Operand::LargeConstant { value } | &Operand::Variable { value, .. } => value,
         }
     }
 }
@@ -169,58 +170,33 @@ pub struct OpCode {
     pub result: u16,
 }
 
-fn return_name(code: &OpCode)-> &str {
+fn return_name(code: &OpCode) -> &str {
     let name = match (&code.form, code.operand_count, code.code) {
-        (&OpForm::Long, _, 0x0) |
-        (&OpForm::LongAsVariable, _, 0x0) => "debug",
-        (&OpForm::Long, _, 0x1) |
-        (&OpForm::LongAsVariable, _, 0x1) => "je",
-        (&OpForm::Long, _, 0x2) |
-        (&OpForm::LongAsVariable, _, 0x2) => "jl",
-        (&OpForm::Long, _, 0x3) |
-        (&OpForm::LongAsVariable, _, 0x3) => "jg",
-        (&OpForm::Long, _, 0x4) |
-        (&OpForm::LongAsVariable, _, 0x4) => "dec_chk",
-        (&OpForm::Long, _, 0x5) |
-        (&OpForm::LongAsVariable, _, 0x5) => "inc_chk",
-        (&OpForm::Long, _, 0x6) |
-        (&OpForm::LongAsVariable, _, 0x6) => "jin",
-        (&OpForm::Long, _, 0x7) |
-        (&OpForm::LongAsVariable, _, 0x7) => "test",
-        (&OpForm::Long, _, 0x8) |
-        (&OpForm::LongAsVariable, _, 0x8) => "or",
-        (&OpForm::Long, _, 0x9) |
-        (&OpForm::LongAsVariable, _, 0x9) => "and",
-        (&OpForm::Long, _, 0xA) |
-        (&OpForm::LongAsVariable, _, 0xA) => "test_attr",
-        (&OpForm::Long, _, 0xB) |
-        (&OpForm::LongAsVariable, _, 0xB) => "set_attr",
-        (&OpForm::Long, _, 0xC) |
-        (&OpForm::LongAsVariable, _, 0xC) => "clear_attr",
-        (&OpForm::Long, _, 0xD) |
-        (&OpForm::LongAsVariable, _, 0xD) => "store",
-        (&OpForm::Long, _, 0xE) |
-        (&OpForm::LongAsVariable, _, 0xE) => "insert_obj",
-        (&OpForm::Long, _, 0xF) |
-        (&OpForm::LongAsVariable, _, 0xF) => "loadw",
-        (&OpForm::Long, _, 0x10) |
-        (&OpForm::LongAsVariable, _, 0x10) => "loadb",
-        (&OpForm::Long, _, 0x11) |
-        (&OpForm::LongAsVariable, _, 0x11) => "get_prop",
-        (&OpForm::Long, _, 0x12) |
-        (&OpForm::LongAsVariable, _, 0x12) => "get_prop_addr",
-        (&OpForm::Long, _, 0x13) |
-        (&OpForm::LongAsVariable, _, 0x13) => "get_next_prop",
-        (&OpForm::Long, _, 0x14) |
-        (&OpForm::LongAsVariable, _, 0x14) => "add",
-        (&OpForm::Long, _, 0x15) |
-        (&OpForm::LongAsVariable, _, 0x15) => "sub",
-        (&OpForm::Long, _, 0x16) |
-        (&OpForm::LongAsVariable, _, 0x16) => "mul",
-        (&OpForm::Long, _, 0x17) |
-        (&OpForm::LongAsVariable, _, 0x17) => "div",
-        (&OpForm::Long, _, 0x18) |
-        (&OpForm::LongAsVariable, _, 0x18) => "mod_fn",
+        (&OpForm::Long, _, 0x0) | (&OpForm::LongAsVariable, _, 0x0) => "debug",
+        (&OpForm::Long, _, 0x1) | (&OpForm::LongAsVariable, _, 0x1) => "je",
+        (&OpForm::Long, _, 0x2) | (&OpForm::LongAsVariable, _, 0x2) => "jl",
+        (&OpForm::Long, _, 0x3) | (&OpForm::LongAsVariable, _, 0x3) => "jg",
+        (&OpForm::Long, _, 0x4) | (&OpForm::LongAsVariable, _, 0x4) => "dec_chk",
+        (&OpForm::Long, _, 0x5) | (&OpForm::LongAsVariable, _, 0x5) => "inc_chk",
+        (&OpForm::Long, _, 0x6) | (&OpForm::LongAsVariable, _, 0x6) => "jin",
+        (&OpForm::Long, _, 0x7) | (&OpForm::LongAsVariable, _, 0x7) => "test",
+        (&OpForm::Long, _, 0x8) | (&OpForm::LongAsVariable, _, 0x8) => "or",
+        (&OpForm::Long, _, 0x9) | (&OpForm::LongAsVariable, _, 0x9) => "and",
+        (&OpForm::Long, _, 0xA) | (&OpForm::LongAsVariable, _, 0xA) => "test_attr",
+        (&OpForm::Long, _, 0xB) | (&OpForm::LongAsVariable, _, 0xB) => "set_attr",
+        (&OpForm::Long, _, 0xC) | (&OpForm::LongAsVariable, _, 0xC) => "clear_attr",
+        (&OpForm::Long, _, 0xD) | (&OpForm::LongAsVariable, _, 0xD) => "store",
+        (&OpForm::Long, _, 0xE) | (&OpForm::LongAsVariable, _, 0xE) => "insert_obj",
+        (&OpForm::Long, _, 0xF) | (&OpForm::LongAsVariable, _, 0xF) => "loadw",
+        (&OpForm::Long, _, 0x10) | (&OpForm::LongAsVariable, _, 0x10) => "loadb",
+        (&OpForm::Long, _, 0x11) | (&OpForm::LongAsVariable, _, 0x11) => "get_prop",
+        (&OpForm::Long, _, 0x12) | (&OpForm::LongAsVariable, _, 0x12) => "get_prop_addr",
+        (&OpForm::Long, _, 0x13) | (&OpForm::LongAsVariable, _, 0x13) => "get_next_prop",
+        (&OpForm::Long, _, 0x14) | (&OpForm::LongAsVariable, _, 0x14) => "add",
+        (&OpForm::Long, _, 0x15) | (&OpForm::LongAsVariable, _, 0x15) => "sub",
+        (&OpForm::Long, _, 0x16) | (&OpForm::LongAsVariable, _, 0x16) => "mul",
+        (&OpForm::Long, _, 0x17) | (&OpForm::LongAsVariable, _, 0x17) => "div",
+        (&OpForm::Long, _, 0x18) | (&OpForm::LongAsVariable, _, 0x18) => "mod_fn",
         // 1 op
         (&OpForm::Short, 1, 0x0) => "jz",
         (&OpForm::Short, 1, 0x1) => "get_sibling",
@@ -269,7 +245,7 @@ fn return_name(code: &OpCode)-> &str {
         (&OpForm::Variable, _, 0x13) => "output_stream",
         (&OpForm::Variable, _, 0x14) => "input_stream",
         (&OpForm::Variable, _, 0x15) => "sound_effect",
-        err @ _ => "illegal_operation"
+        err @ _ => "illegal_operation",
     };
 
     return name;
@@ -277,7 +253,6 @@ fn return_name(code: &OpCode)-> &str {
 
 impl OpCode {
     pub fn assign_instruction(code: &mut OpCode) {
-
         // the form is an object that does not copy, so we need a reference
         // to it
         // behold, the match to rule them all
@@ -286,56 +261,47 @@ impl OpCode {
         // at all
         let instruction = match (&code.form, code.operand_count, code.code) {
             // 2 op - long
-            (&OpForm::Long, _, 0x0) |
-            (&OpForm::LongAsVariable, _, 0x0) => instruction_set::debug,
-            (&OpForm::Long, _, 0x1) |
-            (&OpForm::LongAsVariable, _, 0x1) => instruction_set::je,
-            (&OpForm::Long, _, 0x2) |
-            (&OpForm::LongAsVariable, _, 0x2) => instruction_set::jl,
-            (&OpForm::Long, _, 0x3) |
-            (&OpForm::LongAsVariable, _, 0x3) => instruction_set::jg,
-            (&OpForm::Long, _, 0x4) |
-            (&OpForm::LongAsVariable, _, 0x4) => instruction_set::dec_chk,
-            (&OpForm::Long, _, 0x5) |
-            (&OpForm::LongAsVariable, _, 0x5) => instruction_set::inc_chk,
-            (&OpForm::Long, _, 0x6) |
-            (&OpForm::LongAsVariable, _, 0x6) => instruction_set::jin,
-            (&OpForm::Long, _, 0x7) |
-            (&OpForm::LongAsVariable, _, 0x7) => instruction_set::test,
-            (&OpForm::Long, _, 0x8) |
-            (&OpForm::LongAsVariable, _, 0x8) => instruction_set::or,
-            (&OpForm::Long, _, 0x9) |
-            (&OpForm::LongAsVariable, _, 0x9) => instruction_set::and,
-            (&OpForm::Long, _, 0xA) |
-            (&OpForm::LongAsVariable, _, 0xA) => instruction_set::test_attr,
-            (&OpForm::Long, _, 0xB) |
-            (&OpForm::LongAsVariable, _, 0xB) => instruction_set::set_attr,
-            (&OpForm::Long, _, 0xC) |
-            (&OpForm::LongAsVariable, _, 0xC) => instruction_set::clear_attr,
-            (&OpForm::Long, _, 0xD) |
-            (&OpForm::LongAsVariable, _, 0xD) => instruction_set::store,
-            (&OpForm::Long, _, 0xE) |
-            (&OpForm::LongAsVariable, _, 0xE) => instruction_set::insert_obj,
-            (&OpForm::Long, _, 0xF) |
-            (&OpForm::LongAsVariable, _, 0xF) => instruction_set::loadw,
-            (&OpForm::Long, _, 0x10) |
-            (&OpForm::LongAsVariable, _, 0x10) => instruction_set::loadb,
-            (&OpForm::Long, _, 0x11) |
-            (&OpForm::LongAsVariable, _, 0x11) => instruction_set::get_prop,
-            (&OpForm::Long, _, 0x12) |
-            (&OpForm::LongAsVariable, _, 0x12) => instruction_set::get_prop_addr,
-            (&OpForm::Long, _, 0x13) |
-            (&OpForm::LongAsVariable, _, 0x13) => instruction_set::get_next_prop,
-            (&OpForm::Long, _, 0x14) |
-            (&OpForm::LongAsVariable, _, 0x14) => instruction_set::add,
-            (&OpForm::Long, _, 0x15) |
-            (&OpForm::LongAsVariable, _, 0x15) => instruction_set::sub,
-            (&OpForm::Long, _, 0x16) |
-            (&OpForm::LongAsVariable, _, 0x16) => instruction_set::mul,
-            (&OpForm::Long, _, 0x17) |
-            (&OpForm::LongAsVariable, _, 0x17) => instruction_set::div,
-            (&OpForm::Long, _, 0x18) |
-            (&OpForm::LongAsVariable, _, 0x18) => instruction_set::mod_fn,
+            (&OpForm::Long, _, 0x0) | (&OpForm::LongAsVariable, _, 0x0) => instruction_set::debug,
+            (&OpForm::Long, _, 0x1) | (&OpForm::LongAsVariable, _, 0x1) => instruction_set::je,
+            (&OpForm::Long, _, 0x2) | (&OpForm::LongAsVariable, _, 0x2) => instruction_set::jl,
+            (&OpForm::Long, _, 0x3) | (&OpForm::LongAsVariable, _, 0x3) => instruction_set::jg,
+            (&OpForm::Long, _, 0x4) | (&OpForm::LongAsVariable, _, 0x4) => instruction_set::dec_chk,
+            (&OpForm::Long, _, 0x5) | (&OpForm::LongAsVariable, _, 0x5) => instruction_set::inc_chk,
+            (&OpForm::Long, _, 0x6) | (&OpForm::LongAsVariable, _, 0x6) => instruction_set::jin,
+            (&OpForm::Long, _, 0x7) | (&OpForm::LongAsVariable, _, 0x7) => instruction_set::test,
+            (&OpForm::Long, _, 0x8) | (&OpForm::LongAsVariable, _, 0x8) => instruction_set::or,
+            (&OpForm::Long, _, 0x9) | (&OpForm::LongAsVariable, _, 0x9) => instruction_set::and,
+            (&OpForm::Long, _, 0xA) | (&OpForm::LongAsVariable, _, 0xA) => {
+                instruction_set::test_attr
+            }
+            (&OpForm::Long, _, 0xB) | (&OpForm::LongAsVariable, _, 0xB) => {
+                instruction_set::set_attr
+            }
+            (&OpForm::Long, _, 0xC) | (&OpForm::LongAsVariable, _, 0xC) => {
+                instruction_set::clear_attr
+            }
+            (&OpForm::Long, _, 0xD) | (&OpForm::LongAsVariable, _, 0xD) => instruction_set::store,
+            (&OpForm::Long, _, 0xE) | (&OpForm::LongAsVariable, _, 0xE) => {
+                instruction_set::insert_obj
+            }
+            (&OpForm::Long, _, 0xF) | (&OpForm::LongAsVariable, _, 0xF) => instruction_set::loadw,
+            (&OpForm::Long, _, 0x10) | (&OpForm::LongAsVariable, _, 0x10) => instruction_set::loadb,
+            (&OpForm::Long, _, 0x11) | (&OpForm::LongAsVariable, _, 0x11) => {
+                instruction_set::get_prop
+            }
+            (&OpForm::Long, _, 0x12) | (&OpForm::LongAsVariable, _, 0x12) => {
+                instruction_set::get_prop_addr
+            }
+            (&OpForm::Long, _, 0x13) | (&OpForm::LongAsVariable, _, 0x13) => {
+                instruction_set::get_next_prop
+            }
+            (&OpForm::Long, _, 0x14) | (&OpForm::LongAsVariable, _, 0x14) => instruction_set::add,
+            (&OpForm::Long, _, 0x15) | (&OpForm::LongAsVariable, _, 0x15) => instruction_set::sub,
+            (&OpForm::Long, _, 0x16) | (&OpForm::LongAsVariable, _, 0x16) => instruction_set::mul,
+            (&OpForm::Long, _, 0x17) | (&OpForm::LongAsVariable, _, 0x17) => instruction_set::div,
+            (&OpForm::Long, _, 0x18) | (&OpForm::LongAsVariable, _, 0x18) => {
+                instruction_set::mod_fn
+            }
             // 1 op
             (&OpForm::Short, 1, 0x0) => instruction_set::jz,
             (&OpForm::Short, 1, 0x1) => instruction_set::get_sibling,
@@ -385,19 +351,15 @@ impl OpCode {
             (&OpForm::Variable, _, 0x14) => instruction_set::input_stream,
             (&OpForm::Variable, _, 0x15) => instruction_set::sound_effect,
             // end
-            err @ _ => {
-                panic!("Instruction not found!: form: {}, num_ops: {}, op_code: {}\n IP: {:x}",
-                       err.0,
-                       err.1,
-                       err.2,
-                       code.ip)
-            }
+            err @ _ => panic!(
+                "Instruction not found!: form: {}, num_ops: {}, op_code: {}\n IP: {:x}",
+                err.0, err.1, err.2, code.ip
+            ),
         };
 
         //warn now, since this is a valid instruction
         //warn!( "IP: {:x}", code.ip );
         code.instruction = instruction;
-
     }
 
     pub fn execute(&mut self, env: &mut ZMachine) {
@@ -413,7 +375,6 @@ impl OpCode {
     // to move the pc
 
     pub fn form_opcode(word: [u8; 2]) -> OpCode {
-
         // set some defaults and do stuff we will have to do anyway,
         // like filling out the operands table
 
@@ -445,11 +406,9 @@ impl OpCode {
         }
 
         op_code
-
     }
 
     fn form_base_opcode() -> OpCode {
-
         // almost all of these values will be set/determined
         // by the instruction, either in "form_opcode", "assign_instruction",
         // or by the actual instruction code itself ( in the case of branch,
@@ -467,15 +426,16 @@ impl OpCode {
             input: false,
             instruction: OpCode::null_instruction,
             form: OpForm::Short,
-            operands: [Operand::Omitted {},
-                       Operand::Omitted {},
-                       Operand::Omitted {},
-                       Operand::Omitted {}],
+            operands: [
+                Operand::Omitted {},
+                Operand::Omitted {},
+                Operand::Omitted {},
+                Operand::Omitted {},
+            ],
             operand_count: 0,
             read_bytes: 0,
             result: 0,
         }
-
     }
 
     // there are cases where we need to "return true" or "return false" after
@@ -510,7 +470,6 @@ impl OpCode {
     //
     // this expects a "shell" opcode, which it modifies
     fn form_long_opcode(code: &mut OpCode, id: u8) {
-
         // we include the header byte now
         code.read_bytes = 1;
         code.form = OpForm::Long;
@@ -530,24 +489,34 @@ impl OpCode {
                 code.operands[0] = Operand::SmallConstant { value: 0 };
                 // should note that writing to "0" is writing to the stack
                 // pointer, so the default is to pull a variable from the stack
-                code.operands[1] = Operand::Variable { value: 0, address: 0 };
+                code.operands[1] = Operand::Variable {
+                    value: 0,
+                    address: 0,
+                };
             }
             0x40...0x5f => {
-                code.operands[0] = Operand::Variable { value: 0, address: 0 };
+                code.operands[0] = Operand::Variable {
+                    value: 0,
+                    address: 0,
+                };
                 code.operands[1] = Operand::SmallConstant { value: 0 };
             }
             0x60...0x7f => {
-                code.operands[0] = Operand::Variable { value: 0, address: 0 };
-                code.operands[1] = Operand::Variable { value: 0, address: 0 };
+                code.operands[0] = Operand::Variable {
+                    value: 0,
+                    address: 0,
+                };
+                code.operands[1] = Operand::Variable {
+                    value: 0,
+                    address: 0,
+                };
             }
             // this should not be reachable
             _ => unreachable!(),
         }
-
     }
 
     fn form_short_opcode(code: &mut OpCode, id: u8) {
-
         // we include the header byte now
         code.read_bytes = 1;
         code.form = OpForm::Short;
@@ -567,7 +536,10 @@ impl OpCode {
             }
             0xa0...0xaf => {
                 code.operand_count = 1;
-                code.operands[0] = Operand::Variable { value: 0, address: 0 };
+                code.operands[0] = Operand::Variable {
+                    value: 0,
+                    address: 0,
+                };
             }
             0xbe => panic!("Extended opcodes not supported!"),
             0xb0...0xbd | 0xbf => {
@@ -576,11 +548,9 @@ impl OpCode {
             // this should not be reachable
             _ => unreachable!(),
         }
-
     }
 
     fn form_variable_opcode(code: &mut OpCode, id: u8, second_byte: u8) {
-
         // we read the first 2 here, as indicated by second byte above
         code.read_bytes = 2;
 
@@ -606,7 +576,6 @@ impl OpCode {
         }
 
         for i in 0..code.operands.len() {
-
             let t = (second_byte >> (6 - (i * 2))) & 0b11;
 
             if t == 0b11 {
@@ -615,9 +584,7 @@ impl OpCode {
 
             code.operands[i] = OpCode::get_type_for_bit(t);
             code.operand_count = code.operand_count + 1;
-
         }
-
     }
 
     // this will be a 2-bit value, but we treat it as u8 because that's
@@ -626,7 +593,10 @@ impl OpCode {
         let operand: Operand = match type_bits {
             0b00 => Operand::LargeConstant { value: 0 },
             0b01 => Operand::SmallConstant { value: 0 },
-            0b10 => Operand::Variable { value: 0, address: 0 },
+            0b10 => Operand::Variable {
+                value: 0,
+                address: 0,
+            },
             0b11 => Operand::Omitted {},
             _ => panic!("got something that was not two bytes!"),
         };
@@ -634,16 +604,16 @@ impl OpCode {
         operand
     }
 
-
     fn null_instruction(code: &mut OpCode, env: &mut ZMachine) {
         // doooo nothin
     }
 
-    pub fn read_variables(&mut self,
-                          frame_view: MemoryView,
-                          globals: GlobalVariablesView,
-                          call_stack: &mut Stack) {
-
+    pub fn read_variables(
+        &mut self,
+        frame_view: MemoryView,
+        globals: GlobalVariablesView,
+        call_stack: &mut Stack,
+    ) {
         if self.operand_count == 0 {
             return;
         }
@@ -659,7 +629,10 @@ impl OpCode {
                     *value = frame_view.read_at_head(self.read_bytes);
                     self.read_bytes += 1;
                 }
-                &mut Operand::Variable { ref mut value, ref mut address } => {
+                &mut Operand::Variable {
+                    ref mut value,
+                    ref mut address,
+                } => {
                     let addr = frame_view.read_at_head(self.read_bytes);
                     *address = addr;
 
@@ -683,13 +656,10 @@ impl OpCode {
                     }
 
                     self.read_bytes += 1;
-
-
                 }
                 &mut Operand::Omitted => break,
             };
         }
-
     }
 }
 

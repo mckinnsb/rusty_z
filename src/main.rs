@@ -1,5 +1,3 @@
-#![feature(drop_types_in_const)]
-
 //its a little strange FPS is a signed value, not
 //sure what a negative value would mean?
 //
@@ -7,43 +5,31 @@
 //we might want to figure out a way to run more than one opcode
 //at a time, potentially taking away control between input/sreads
 
-const FPS: i32 = 1000;
-
 pub mod zmachine;
 
 //extern crate rusty_z;
 extern crate rand;
-use self::rand::*;
-
-use std::io::*;
-use std::rc::Rc;
-use std::cell::*;
 use std::process;
-use std::thread;
-use std::time;
 
-use zmachine::main::*;
 use zmachine::main::input_handler::*;
+use zmachine::main::*;
 
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 extern crate webplatform;
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 use webplatform::*;
 
-#[cfg(not(target_os="emscripten"))]
-#[macro_use]
+#[cfg(not(target_os = "emscripten"))]
 extern crate log;
-#[cfg(not(target_os="emscripten"))]
+#[cfg(not(target_os = "emscripten"))]
 extern crate log4rs;
 
-#[cfg(not(target_os="emscripten"))]
+#[cfg(not(target_os = "emscripten"))]
 use log::LogLevelFilter;
-#[cfg(not(target_os="emscripten"))]
+#[cfg(not(target_os = "emscripten"))]
 use log4rs::append::file::*;
-#[cfg(not(target_os="emscripten"))]
+#[cfg(not(target_os = "emscripten"))]
 use log4rs::config::{Appender, Config, Logger, Root};
-
-
 
 // this is unsafe - but the current implementation of emscripten using webplatform
 // does not allow passing or currying arguments to the main loop callback function,
@@ -62,18 +48,17 @@ use log4rs::config::{Appender, Config, Logger, Root};
 // its actually probably far more standard to use Option<Box<T>>s.
 // might change over to that soon
 
-static mut machine: Option<ZMachine<'static>> = None;
-static mut data_buffer: Option<Vec<u8>> = None;
-static mut input_config: Option<InputConfiguration<'static>> = None;
+static mut MACHINE: Option<ZMachine<'static>> = None;
+static mut DATA_BUFFER: Option<Vec<u8>> = None;
+static mut INPUT_CONFIG: Option<InputConfiguration<'static>> = None;
 
-#[cfg(target_os="emscripten")]
-static mut handler: Option<InputHandler<WebReader<'static>>> = None;
+#[cfg(target_os = "emscripten")]
+static mut HANDLER: Option<InputHandler<WebReader<'static>>> = None;
 
-#[cfg(not(target_os="emscripten"))]
-static mut handler: Option<InputHandler<std::io::Stdin>> = None;
+#[cfg(not(target_os = "emscripten"))]
+static mut HANDLER: Option<InputHandler<std::io::Stdin>> = None;
 
 fn main() {
-
     // try to load the data
 
     // this is a static reference, we need a vec
@@ -82,20 +67,16 @@ fn main() {
     //
     // we could probably split this out later using CFG to
     // lower the size of the desktop binary
-    let data = include_bytes!("../Zork1.dat");
-
-    // this gets the file size from the static string
-    let file_size = data.len();
+    let data = include_bytes!("../zork2.z5");
 
     // we then get a reference to that static string as a slice
     let data_ref: &[u8] = &data[..];
 
     unsafe {
-
         //we then copy it, using to_vec
-        data_buffer = Some(data_ref.to_vec());
+        DATA_BUFFER = Some(data_ref.to_vec());
 
-        if data_buffer.as_ref().unwrap().len() <= 0 {
+        if DATA_BUFFER.as_ref().unwrap().len() <= 0 {
             panic!("Could not read file!");
         }
 
@@ -103,29 +84,27 @@ fn main() {
         // use the same signature for both platforms
         // and not force desktop envs to install webplatform
 
-        input_config = create_options();
+        INPUT_CONFIG = create_options();
 
         // machine now takes ownership of the cloned data buffer
         // its mut, because next_instruction can change the
         // state of the machine. which makes complete sense
 
-        machine = Some(ZMachine::new(data_buffer.as_ref().unwrap().clone()));
-        machine.as_mut().unwrap().clear();
+        MACHINE = Some(ZMachine::new(DATA_BUFFER.as_ref().unwrap().clone()));
+        MACHINE.as_mut().unwrap().clear();
 
-        handler = Some(input_handler(input_config.as_ref().unwrap()));
-
+        HANDLER = Some(input_handler(INPUT_CONFIG.as_ref().unwrap()));
     }
 
     set_loop();
-
 }
 
-#[cfg(not(target_os="emscripten"))]
+#[cfg(not(target_os = "emscripten"))]
 fn create_options<'a>() -> Option<InputConfiguration<'a>> {
     Some(InputConfiguration::Standard)
 }
 
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 fn create_options<'a>() -> Option<InputConfiguration<'a>> {
     Some(InputConfiguration::HTMLDocument {
         html_doc: webplatform::init(),
@@ -134,21 +113,20 @@ fn create_options<'a>() -> Option<InputConfiguration<'a>> {
     })
 }
 
-#[cfg(not(target_os="emscripten"))]
+#[cfg(not(target_os = "emscripten"))]
 fn input_handler(config: &InputConfiguration) -> InputHandler<std::io::Stdin> {
     let reader = std::io::stdin();
     InputHandler { reader: reader }
 }
 
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 fn input_handler<'a>(config: &InputConfiguration<'a>) -> InputHandler<WebReader<'a>> {
-
     match config {
-
-        &InputConfiguration::HTMLDocument { ref html_doc,
-                                            ref form_selector,
-                                            ref input_selector } => {
-
+        &InputConfiguration::HTMLDocument {
+            ref html_doc,
+            ref form_selector,
+            ref input_selector,
+        } => {
             let form = html_doc.element_query(form_selector);
             let player_input = html_doc.element_query(input_selector);
 
@@ -167,20 +145,15 @@ fn input_handler<'a>(config: &InputConfiguration<'a>) -> InputHandler<WebReader<
             };
 
             InputHandler { reader: reader }
-
         }
 
         _ => panic!("emscripten was given a non-html config!"),
-
     }
-
 }
 
 pub extern "C" fn main_loop() {
-
     unsafe {
-
-        let machina = machine.as_mut().unwrap();
+        let machina = MACHINE.as_mut().unwrap();
 
         while let x @ MachineState::Running = machina.state.clone() {
             //warn!( "IP: {:x}", machina.current_ip() );
@@ -189,36 +162,35 @@ pub extern "C" fn main_loop() {
 
         match machina.state.clone() {
             MachineState::Restarting => {
-                machine = Some(ZMachine::new(data_buffer.as_ref().unwrap().clone()));
+                MACHINE = Some(ZMachine::new(DATA_BUFFER.as_ref().unwrap().clone()));
                 //warn!( "IP: {:x}", machine.as_ref().unwrap().current_ip() );
-                machine.as_mut().unwrap().next_instruction();
+                MACHINE.as_mut().unwrap().next_instruction();
             }
             MachineState::Stopped => {
                 quit();
-            },
+            }
             MachineState::TakingInput { ref callback } => {
-                machina.wait_for_input(handler.as_mut().unwrap(), callback.clone());
-            },
+                machina.wait_for_input(HANDLER.as_mut().unwrap(), callback.clone());
+            }
             //this shouldn't happen
             _ => (),
         };
-
     }
 }
 
-#[cfg(not(target_os="emscripten"))]
+#[cfg(not(target_os = "emscripten"))]
 fn quit() {
     process::exit(0);
 }
 
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 fn quit() {
     // this is a no-op in emscripten because in our current version
     // (webplatform, which is super old and we need to transition away from),
     // we can't use EXIT_RUNTIME=1 (which allows a WASM program to end the WASM runtime)
     //
-    // the issue here, i believe, is that normally, multiple WASM programs run 
-    // in the same runtime, and if you allow one of them to shut it down, you allow that 
+    // the issue here, i believe, is that normally, multiple WASM programs run
+    // in the same runtime, and if you allow one of them to shut it down, you allow that
     // process to be able to end all other processes, and so this has to be explicit.
     //
     // so we just pause it.. forever.
@@ -227,22 +199,24 @@ fn quit() {
     }
 }
 
-
-#[cfg(not(target_os="emscripten"))]
+#[cfg(not(target_os = "emscripten"))]
 fn set_loop() {
-
     //setup logger
 
     let logger = FileAppender::builder().build("log/dev.log").unwrap();
     let expanded = FileAppender::builder().build("log/expanded.log").unwrap();
 
-    let config = Config::builder().
-        appender(Appender::builder().build("main", Box::new(logger))).
-        appender(Appender::builder().build("expanded", Box::new(expanded))).
-        logger(Logger::builder().appender("expanded").additive(false).build("rusty_z::zmachine", LogLevelFilter::Info)).
-        build(Root::builder().appender("main").build(LogLevelFilter::Warn)).
-        unwrap();
-    
+    let config = Config::builder()
+        .appender(Appender::builder().build("main", Box::new(logger)))
+        .appender(Appender::builder().build("expanded", Box::new(expanded)))
+        .logger(
+            Logger::builder()
+                .appender("expanded")
+                .additive(false)
+                .build("rusty_z::zmachine", LogLevelFilter::Info),
+        )
+        .build(Root::builder().appender("main").build(LogLevelFilter::Warn))
+        .unwrap();
     let handle = log4rs::init_config(config).unwrap();
 
     //warn!( "log started" );
@@ -252,7 +226,7 @@ fn set_loop() {
     }
 }
 
-#[cfg(target_os="emscripten")]
+#[cfg(target_os = "emscripten")]
 fn set_loop() {
     //emscripten_set_main_loop takes three parameters
     //

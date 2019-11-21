@@ -1,9 +1,9 @@
 use super::memory_view::*;
 
-use std::rc::*;
-use std::cell::RefCell;
-use std::cell::Ref;
 use std::borrow::Borrow;
+use std::cell::Ref;
+use std::cell::RefCell;
+use std::rc::*;
 
 // this is the "zmachine header" , its in dynamic memory
 // and is up to 64 bytes, described on page 1 and extensively on 11 of the
@@ -58,7 +58,6 @@ impl Header {
     }
 
     pub fn create(memory: Rc<RefCell<Vec<u8>>>) -> Header {
-
         // make two clones - one will be dropped by the end of the scope
         let memory_for_struct = memory.clone();
         let memory_for_header = memory.clone();
@@ -89,11 +88,9 @@ impl Header {
         };
 
         obj
-
     }
 
     pub fn get_status(&self) -> String {
-
         let header_flags = match self.flags {
             HeaderFlags::V1 { ref flags } => flags,
             HeaderFlags::NotImplemented => panic!("not implemented!"),
@@ -107,29 +104,32 @@ impl Header {
             StatusLineType::Score => "Show score and moves in status line",
         };
 
-        let flags_string: String = format!("status: {}\nsplit_story: {}\nshow_status_line: \
-                                            {}\nsplit_screen: {}\n\
-                                            variable_pitch_font: {}\n",
-                                           status_type,
-                                           header_flags.split_story,
-                                           header_flags.split_screen,
-                                           header_flags.show_status_line,
-                                           header_flags.variable_pitch_font);
-        let debug: String = format!("version: {}\n{}\nhi_memory_start: {:x}\npc_start: \
-                                     {:x}\ndictionary_location:{:x}\nobject_table_location: \
-                                     {:x}\nglobal_vars_table_location: \
-                                     {:x}\nstatic_memory_start_location: {:x}\n",
-                                    self.version,
-                                    &flags_string,
-                                    self.hi_memory_start,
-                                    self.pc_start,
-                                    self.dictionary_location,
-                                    self.object_table_location,
-                                    self.global_vars_table_location,
-                                    self.static_memory_start_location);
+        let flags_string: String = format!(
+            "status: {}\nsplit_story: {}\nshow_status_line: \
+             {}\nsplit_screen: {}\n\
+             variable_pitch_font: {}\n",
+            status_type,
+            header_flags.split_story,
+            header_flags.split_screen,
+            header_flags.show_status_line,
+            header_flags.variable_pitch_font
+        );
+        let debug: String = format!(
+            "version: {}\n{}\nhi_memory_start: {:x}\npc_start: \
+             {:x}\ndictionary_location:{:x}\nobject_table_location: \
+             {:x}\nglobal_vars_table_location: \
+             {:x}\nstatic_memory_start_location: {:x}\n",
+            self.version,
+            &flags_string,
+            self.hi_memory_start,
+            self.pc_start,
+            self.dictionary_location,
+            self.object_table_location,
+            self.global_vars_table_location,
+            self.static_memory_start_location
+        );
 
         debug
-
     }
 }
 
@@ -144,16 +144,13 @@ pub enum HeaderFlags {
 
 impl HeaderFlags {
     fn process_header(view: &MemoryView, version: u8) -> HeaderFlags {
-
         match version {
             1...3 => HeaderFlags::process_v1_header(view),
             _ => panic!("This interpreter only supports up to ZMachine version 3 at this time."),
         }
-
     }
 
     fn process_v1_header(view: &MemoryView) -> HeaderFlags {
-
         let flag_byte = view.read_at(0x1);
 
         HeaderFlags::V1 {
@@ -177,7 +174,6 @@ impl HeaderFlags {
                 variable_pitch_font: flag_byte & 0x6 > 0,
             },
         }
-
     }
 }
 
