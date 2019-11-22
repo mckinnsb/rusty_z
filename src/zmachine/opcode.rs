@@ -1,5 +1,6 @@
 // opcode struct
 
+use super::super::interfaces::zinterface::ZInterface;
 use super::global_variables_view::*;
 use super::memory_view::*;
 use super::instruction_set;
@@ -98,7 +99,7 @@ impl Operand {
     }
 }
 
-pub struct OpCode {
+pub struct OpCode<T: ZInterface> {
     // the pointer to the code, not used directly but
     // very helpful for debugging
     pub ip: u32,
@@ -139,7 +140,7 @@ pub struct OpCode {
     pub input: bool,
 
     // this is the actual opcode instruction, its hidden behind "execute"
-    instruction: fn(&mut OpCode, &mut ZMachine),
+    instruction: fn(&mut OpCode<T>, &mut ZMachine<T>),
 
     // how many bytes have we read until the instruction is executed
     // ( and the stack pointer potentially changes )?
@@ -169,7 +170,7 @@ pub struct OpCode {
     pub result: u16,
 }
 
-fn return_name(code: &OpCode) -> &str {
+fn return_name<T: ZInterface>(code: &OpCode<T>) -> &str {
     let name = match (&code.form, code.operand_count, code.code) {
         (&OpForm::Long, _, 0x0) | (&OpForm::LongAsVariable, _, 0x0) => "debug",
         (&OpForm::Long, _, 0x1) | (&OpForm::LongAsVariable, _, 0x1) => "je",
@@ -250,8 +251,8 @@ fn return_name(code: &OpCode) -> &str {
     return name;
 }
 
-impl OpCode {
-    pub fn assign_instruction(code: &mut OpCode) {
+impl<T: ZInterface> OpCode<T> {
+    pub fn assign_instruction(code: &mut OpCode<T>) {
         // the form is an object that does not copy, so we need a reference
         // to it
         // behold, the match to rule them all
@@ -361,7 +362,7 @@ impl OpCode {
         code.instruction = instruction;
     }
 
-    pub fn execute(&mut self, env: &mut ZMachine) {
+    pub fn execute(&mut self, env: &mut ZMachine<T>) {
         (self.instruction)(self, env);
     }
 
@@ -373,11 +374,11 @@ impl OpCode {
     // and we trust the opcode itself, since the length is variable,
     // to move the pc
 
-    pub fn form_opcode(word: [u8; 2]) -> OpCode {
+    pub fn form_opcode(word: [u8; 2]) -> OpCode<T> {
         // set some defaults and do stuff we will have to do anyway,
         // like filling out the operands table
 
-        let mut op_code: OpCode = OpCode::form_base_opcode();
+        let mut op_code: OpCode<T> = OpCode::form_base_opcode();
 
         // make a closure here to let rust know when we want to drop
         // the mutable reference
@@ -405,7 +406,7 @@ impl OpCode {
         op_code
     }
 
-    fn form_base_opcode() -> OpCode {
+    fn form_base_opcode() -> OpCode<T> {
         // almost all of these values will be set/determined
         // by the instruction, either in "form_opcode", "assign_instruction",
         // or by the actual instruction code itself ( in the case of branch,
@@ -435,6 +436,9 @@ impl OpCode {
         }
     }
 
+    //placeholder, does nothing
+    pub fn null_instruction(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {}
+
     // there are cases where we need to "return true" or "return false" after
     // branch operations - basically, we need to run two opcodes at a time
     // even though only one is explicitly encoded ( the rtrue or rfalse will
@@ -446,13 +450,13 @@ impl OpCode {
     // stack, we don't need things like ip/code/operand count/read bytes
     // or result - or really anything, except this instruction
 
-    pub fn form_rfalse() -> OpCode {
+    pub fn form_rfalse() -> OpCode<T> {
         let mut rfalse = OpCode::form_base_opcode();
         rfalse.instruction = instruction_set::rfalse;
         rfalse
     }
 
-    pub fn form_rtrue() -> OpCode {
+    pub fn form_rtrue() -> OpCode<T> {
         let mut rtrue = OpCode::form_base_opcode();
         rtrue.instruction = instruction_set::rtrue;
         rtrue
@@ -466,7 +470,7 @@ impl OpCode {
     // it's a two-step opcode process, and one of the reasons why its a VM )
     //
     // this expects a "shell" opcode, which it modifies
-    fn form_long_opcode(code: &mut OpCode, id: u8) {
+    fn form_long_opcode(code: &mut OpCode<T>, id: u8) {
         // we include the header byte now
         code.read_bytes = 1;
         code.form = OpForm::Long;
@@ -513,7 +517,7 @@ impl OpCode {
         }
     }
 
-    fn form_short_opcode(code: &mut OpCode, id: u8) {
+    fn form_short_opcode(code: &mut OpCode<T>, id: u8) {
         // we include the header byte now
         code.read_bytes = 1;
         code.form = OpForm::Short;
@@ -547,7 +551,7 @@ impl OpCode {
         }
     }
 
-    fn form_variable_opcode(code: &mut OpCode, id: u8, second_byte: u8) {
+    fn form_variable_opcode(code: &mut OpCode<T>, id: u8, second_byte: u8) {
         // we read the first 2 here, as indicated by second byte above
         code.read_bytes = 2;
 
@@ -579,30 +583,11 @@ impl OpCode {
                 break;
             }
 
-            code.operands[i] = OpCode::get_type_for_bit(t);
+            code.operands[i] = get_type_for_bit(t);
             code.operand_count = code.operand_count + 1;
         }
     }
 
-    // this will be a 2-bit value, but we treat it as u8 because that's
-    // probably the only reasonable value
-    fn get_type_for_bit(type_bits: u8) -> Operand {
-        let operand: Operand = match type_bits {
-            0b00 => Operand::LargeConstant { value: 0 },
-            0b01 => Operand::SmallConstant { value: 0 },
-            0b10 => Operand::Variable {
-                value: 0,
-                address: 0,
-            },
-            0b11 => Operand::Omitted {},
-            _ => panic!("got something that was not two bytes!"),
-        };
-
-        operand
-    }
-
-    // It does what it says on the box!
-    fn null_instruction(_: &mut OpCode, _: &mut ZMachine) {}
 
     pub fn read_variables(
         &mut self,
@@ -658,7 +643,24 @@ impl OpCode {
     }
 }
 
-impl fmt::Display for OpCode {
+// this will be a 2-bit value, but we treat it as u8 because that's
+// probably the only reasonable value
+fn get_type_for_bit(type_bits: u8) -> Operand {
+    let operand: Operand = match type_bits {
+        0b00 => Operand::LargeConstant { value: 0 },
+        0b01 => Operand::SmallConstant { value: 0 },
+        0b10 => Operand::Variable {
+            value: 0,
+            address: 0,
+        },
+        0b11 => Operand::Omitted {},
+        _ => panic!("got something that was not two bytes!"),
+    };
+
+    operand
+}
+
+impl<T: ZInterface> fmt::Display for OpCode<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f,
                "\n ip:{:x}\n form: {}\n opcode: {}\n operands:\n\n{}\n operand_count: {}\n branch: {}\n result: {}\n",

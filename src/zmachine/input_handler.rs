@@ -1,5 +1,5 @@
-use std::io::*;
 use std::cell::*;
+use std::io::*;
 use std::rc::*;
 
 #[cfg(target_os = "emscripten")]
@@ -23,12 +23,11 @@ pub struct InputHandler<T: LineReader> {
     pub reader: T,
 }
 
-
-// we are going to change it so the emscriptem version outputs to a stream; 
+// we are going to change it so the emscriptem version outputs to a stream;
 // it's no longer going to pull an html element from the page
 pub enum InputConfiguration {
     Standard,
-    HTMLDocument
+    HTMLDocument,
 }
 
 pub struct WebInputIndicator {
@@ -46,7 +45,6 @@ pub struct WebReader {
 #[cfg(target_os = "emscripten")]
 impl LineReader for WebReader {
     fn read_next_line(&mut self, _: &mut String) -> Option<usize> {
-
         //i have no idea why i have to do it this way -
         //in memory view we just use borrow and borrow_mut -
         //wondering if its the underlying data type (my own struct vs. vec)
@@ -55,7 +53,7 @@ impl LineReader for WebReader {
 
         /*
          * it's likely we will still need this mutex-like structure
-         
+
         let input_sent = {
             let indicator: &RefCell<WebInputIndicator> = self.indicator.borrow();
             indicator.borrow().input_sent
@@ -63,10 +61,9 @@ impl LineReader for WebReader {
 
          */
 
-
-        /* 
+        /*
          * but using this is kind of unlikely
-         
+
         match (self.initialized, input_sent) {
             (true, true) => {
                 self.indicator.borrow_mut().input_sent = false;

@@ -1,15 +1,7 @@
 extern crate rand;
 use self::rand::*;
 
-#[cfg(not(target_os = "emscripten"))]
-extern crate termion;
-#[cfg(not(target_os = "emscripten"))]
-use self::termion::{clear, color, cursor, style};
-
-#[cfg(target_os = "emscripten")]
-extern crate stdweb;
-
-use super::input_handler::*;
+use super::super::interfaces::zinterface::ZInterface;
 use super::opcode::*;
 
 // represents the current zmachine
@@ -154,7 +146,7 @@ impl Stack {
     }
 }
 
-pub struct ZMachine {
+pub struct ZMachine<T: ZInterface> {
     // the call stack, which are 2-byte words (u16)
     //
     // this also mixes in the local stack,
@@ -175,6 +167,9 @@ pub struct ZMachine {
     // everyone has access to it, its mostly configuration stuff
     // and version info
     pub header: Header,
+
+    // the interface to the GUI, so ZMachine can print/take input
+    pub zinterface: T,
 
     // ALL of the memory, this represents the entire state of the machine
     // this is loaded in at first , then modified by save files, then
@@ -207,9 +202,9 @@ pub struct ZMachine {
     pub state: MachineState,
 }
 
-impl ZMachine {
+impl<T: ZInterface> ZMachine<T> {
     //creates a new zmachine from the data given
-    pub fn new(data: Vec<u8>) -> ZMachine {
+    pub fn new(data: Vec<u8>, interface: T) -> ZMachine<T> {
         // we have to create an immutably reference
         // counted mutable reference in order to
         //
@@ -245,7 +240,7 @@ impl ZMachine {
 
         let pc_start = header.pc_start as u32;
 
-        let machine = ZMachine {
+        let machine = ZMachine::<T> {
             call_stack: Stack {
                 top_of_frame: 0,
                 stack: Vec::new(),
@@ -253,6 +248,7 @@ impl ZMachine {
             header: header,
             ip: pc_start,
             memory: memory,
+            zinterface: interface,
             random_generator: RandomGen {
                 generator: XorShiftRng::from_seed([
                     rand::thread_rng().gen::<u32>(),
@@ -271,21 +267,13 @@ impl ZMachine {
         machine
     }
 
-    #[cfg(not(target_os = "emscripten"))]
-    pub fn clear(&self) {
-        println!("{}", clear::All);
-    }
-
-    #[cfg(target_os = "emscripten")]
-    pub fn clear(&self) {}
-
     //anyone can read this, just not mut/set it
     pub fn current_ip(&self) -> u32 {
         self.ip
     }
 
     //actually executes the instruction
-    fn execute_instruction(&mut self, op_code: &mut OpCode) {
+    fn execute_instruction(&mut self, op_code: &mut OpCode<T>) {
         op_code.execute(self);
 
         // technically, store and branch cannot happen at the same time
@@ -423,7 +411,7 @@ impl ZMachine {
     }
 
     // handle a branch opcode - this happens after instructions are executed
-    pub fn handle_branch(&mut self, op_code: &mut OpCode) {
+    pub fn handle_branch(&mut self, op_code: &mut OpCode<T>) {
         let view = self.get_frame_view();
         let condition = op_code.result;
         let true_mask = 0b10000000;
@@ -560,76 +548,9 @@ impl ZMachine {
 
             // have the view.
             op_code.read_variables(view, globals, stack);
-
-            // print the opcode after resolution
-            ZMachine::print_op(&op_code);
         }
 
-        //println!("{:x}", op_code.ip);
-
         self.execute_instruction(&mut op_code);
-    }
-
-    #[cfg(target_os = "emscripten")]
-    pub fn print_op(_: &OpCode) {}
-
-    #[cfg(not(target_os = "emscripten"))]
-    pub fn print_op(_: &OpCode) {}
-
-    //print to main section , js
-    #[cfg(target_os = "emscripten")]
-    pub fn print_to_main(&mut self, _: &str) {
-        // replace with updating state
-    }
-
-    //print to header , js
-    #[cfg(target_os = "emscripten")]
-    pub fn print_to_header(&mut self, _: &str, _: &str) {
-        // replace with updating state
-    }
-
-    //print to main section, desktop
-    #[cfg(not(target_os = "emscripten"))]
-    pub fn print_to_main(&self, string: &str) {
-        print!("{}", string);
-    }
-
-    //print to header( usually, status line ), desktop
-    //
-    //not sure if these arguments are the best right now,
-    //also, pretty sure this is only used by version 3 - in version
-    //4 + i think this is a sep. window, desktop
-    #[cfg(not(target_os = "emscripten"))]
-    pub fn print_to_header(&self, left_side: &str, right_side: &str) {
-        //terminals start at 1,1 so, keep that in mind
-        //this could panic... but if it can't get the terminal size,
-        //there's a good reason to
-        let (x, y) = termion::terminal_size().unwrap();
-
-        let top_left = cursor::Goto(1, 1);
-        //padding is 4 chars
-        let margin_padding = "    ";
-        let center_size = (x as usize) - left_side.len() - right_side.len() - 4 * 2;
-        let center_padding: String = (0..center_size).into_iter().map(|_| " ").collect();
-        let bottom = cursor::Goto(2, y);
-
-        let header = format!(
-            "{}{}{}{}{}{}{}{}{}{}{}{}",
-            cursor::Goto(1, 1),
-            color::Bg(color::LightWhite),
-            color::Fg(color::Black),
-            clear::CurrentLine,
-            top_left,
-            margin_padding,
-            left_side,
-            center_padding,
-            right_side,
-            margin_padding,
-            style::Reset,
-            bottom
-        );
-
-        print!("{}", header);
     }
 
     // this JUST reads a variable, but does not modify the stack in any way
@@ -668,14 +589,14 @@ impl ZMachine {
 
     // wait for input, and on input, hand it to whatever code/op was waiting
     // for it
-    pub fn wait_for_input<T: LineReader>(
+    pub fn wait_for_input(
         &mut self,
-        handler: &mut InputHandler<T>,
-        callback: Rc<dyn Fn(String)>,
+        callback: Rc<dyn Fn(String)>
     ) {
-        let result = match handler.get_input() {
+        let mut buf = String::new();
+        let result = match self.zinterface.read_next_line(&mut buf) {
             Some(x) => {
-                callback(x);
+                callback(buf.to_string());
                 true
             }
             _ => false,
