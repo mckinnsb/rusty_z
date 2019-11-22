@@ -6,12 +6,13 @@
 //at a time, potentially taking away control between input/sreads
 
 pub mod zmachine;
+pub mod interfaces;
 
-//extern crate rusty_z;
 extern crate rand;
 
 use zmachine::input_handler::*;
 use zmachine::zmachine::*;
+use interfaces::zinterface::*;
 
 #[cfg(target_os = "emscripten")]
 extern crate stdweb;
@@ -19,6 +20,8 @@ extern crate stdweb;
 use std::rc::Rc;
 #[cfg(target_os = "emscripten")]
 use std::cell::*;
+#[cfg(target_os = "emscripten")]
+use interfaces::web;
 
 #[cfg(not(target_os = "emscripten"))]
 use std::process;
