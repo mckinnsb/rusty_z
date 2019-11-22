@@ -1,12 +1,12 @@
 extern crate rand;
-use super::super::header::*;
-use super::super::memory_view::MemoryView;
-use super::super::object_properties_view::*;
-use super::super::object_view::ObjectView;
-use super::super::zstring::*;
+use super::header::*;
+use super::memory_view::MemoryView;
+use super::object_properties_view::*;
+use super::object_view::ObjectView;
+use super::zstring::*;
 use super::opcode::*;
-use super::MachineState;
-use super::ZMachine;
+use super::zmachine::MachineState;
+use super::zmachine::ZMachine;
 
 use std::cmp;
 

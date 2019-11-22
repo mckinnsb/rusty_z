@@ -1,7 +1,3 @@
-pub mod input_handler;
-pub mod instruction_set;
-pub mod opcode;
-
 extern crate rand;
 use self::rand::*;
 
@@ -13,8 +9,8 @@ use self::termion::{clear, color, cursor, style};
 #[cfg(target_os = "emscripten")]
 extern crate stdweb;
 
-use self::input_handler::*;
-use self::opcode::*;
+use super::input_handler::*;
+use super::opcode::*;
 
 // represents the current zmachine
 use super::global_variables_view::*;
@@ -196,13 +192,13 @@ pub struct ZMachine {
     //
     // the machine owns a reference to the memory, and typically
     // is the only person who asks for a mutable reference
-    memory: Rc<RefCell<Vec<u8>>>,
+    pub memory: Rc<RefCell<Vec<u8>>>,
 
     // the stack pointer/program counter, technically this can be 0-512k,
     // closest representation is u32
     //
     // note that this is one of the very few 'u32' things here
-    ip: u32,
+    pub ip: u32,
 
     //we use XorShiftRng because there are no real security concerns here
     pub random_generator: RandomGen<XorShiftRng>,

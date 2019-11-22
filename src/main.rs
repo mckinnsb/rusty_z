@@ -10,8 +10,8 @@ pub mod zmachine;
 //extern crate rusty_z;
 extern crate rand;
 
-use zmachine::main::input_handler::*;
-use zmachine::main::*;
+use zmachine::input_handler::*;
+use zmachine::zmachine::*;
 
 #[cfg(target_os = "emscripten")]
 extern crate stdweb;
@@ -53,7 +53,6 @@ use log4rs::config::{Appender, Config, Logger, Root};
 
 static mut MACHINE: Option<ZMachine> = None;
 static mut DATA_BUFFER: Option<Vec<u8>> = None;
-static mut INPUT_CONFIG: Option<InputConfiguration> = None;
 
 #[cfg(target_os = "emscripten")]
 static mut HANDLER: Option<InputHandler<WebReader>> = None;
@@ -83,12 +82,6 @@ fn main() {
             panic!("Could not read file!");
         }
 
-        // we can't get away from this cfg! call , it's the only way we really
-        // use the same signature for both platforms
-        // and not force desktop envs to install webplatform
-
-        INPUT_CONFIG = create_options();
-
         // machine now takes ownership of the cloned data buffer
         // its mut, because next_instruction can change the
         // state of the machine. which makes complete sense
@@ -96,7 +89,7 @@ fn main() {
         MACHINE = Some(ZMachine::new(DATA_BUFFER.as_ref().unwrap().clone()));
         MACHINE.as_mut().unwrap().clear();
 
-        HANDLER = Some(input_handler(INPUT_CONFIG.as_ref().unwrap()));
+        HANDLER = Some(input_handler(create_options().as_ref().unwrap()));
     }
 
     set_loop();

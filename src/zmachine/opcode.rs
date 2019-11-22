@@ -1,10 +1,10 @@
 // opcode struct
 
-use super::super::global_variables_view::*;
-use super::super::memory_view::*;
+use super::global_variables_view::*;
+use super::memory_view::*;
 use super::instruction_set;
-use super::Stack;
-use super::ZMachine;
+use super::zmachine::Stack;
+use super::zmachine::ZMachine;
 use std::fmt;
 
 // the "form" of the opcode, which dictates how the first byte(s) are read,
