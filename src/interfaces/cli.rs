@@ -1,15 +1,17 @@
-use std::process;
-
 extern crate log;
 extern crate log4rs;
 extern crate termion;
 
-use self::termion::{clear, color, cursor, style};
-use super::zinterface::*;
+use std::process;
+use std::io::*;
 
+use self::termion::{clear, color, cursor, style};
 use self::log::LogLevelFilter;
 use self::log4rs::append::file::*;
 use self::log4rs::config::{Appender, Config, Logger, Root};
+
+use super::zinterface::*;
+use super::super::zmachine::input_handler::*;
 
 pub struct CliInterface {}
 

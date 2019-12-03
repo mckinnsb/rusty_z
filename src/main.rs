@@ -23,7 +23,10 @@ fn main() {
     let machine = ZMachine::new(data, CliInterface {});
 
     #[cfg(target_os = "emscripten")]
-    let machine = ZMachine::new(data, WebInterface {});
+    let machine = ZMachine::new(
+        data,
+        WebInterface::new()
+    );
 
     machine.zinterface.clear();
     machine.zinterface.set_loop();
@@ -83,7 +86,7 @@ pub fn main_loop<T: ZInterface>(machina: &mut ZMachine<WebInterface>) {
     match machina.state.clone() {
         MachineState::Restarting => {
             let data = get_program();
-            *machina = ZMachine::new(data, WebInterface {});
+            *machina = ZMachine::new(data, WebInterface::new());
             machina.next_instruction();
         }
         MachineState::Stopped => {

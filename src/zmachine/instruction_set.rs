@@ -967,16 +967,18 @@ pub fn split_window<T: ZInterface>(_: &mut OpCode<T>, _: &mut ZMachine<T>) {
 }
 
 pub fn sread<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
-    //println!( "getting input" );
-
     show_status(code, machine);
 
     // we might want to change where this is in the future, it seems like
     // we might not want to rely on an opcode to flush the output - 
-    // this isn't necessary behavior for the ZMachine<T>
+    // this isn't necessary behavior for the ZMachine according to the standards
+    // document; the only opcode that flushes is set_colour which isn't available
+    // until version 5 (thats because it dumps the previous color before changing the palette
+    // which was required for more primitive systems)
 
     // another thing to keep in mind is that this really only has an impact on
-    // the CLI version, there is no "output stream" in WASM
+    // the CLI version, io::stdout has an implementation in WASM (it's the console),
+    // but since we don't use it in the WASM version, nothing is flushed
 
     match io::stdout().flush() {
         Err(_) => panic!("could not flush the output!"),
