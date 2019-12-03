@@ -3,7 +3,6 @@ extern crate log4rs;
 extern crate termion;
 
 use std::process;
-use std::io::*;
 
 use self::termion::{clear, color, cursor, style};
 use self::log::LogLevelFilter;
@@ -11,7 +10,6 @@ use self::log4rs::append::file::*;
 use self::log4rs::config::{Appender, Config, Logger, Root};
 
 use super::zinterface::*;
-use super::super::zmachine::input_handler::*;
 
 pub struct CliInterface {}
 
@@ -67,8 +65,6 @@ impl ZInterface for CliInterface {
     fn quit(&self) {
         process::exit(0);
     }
-
-    fn set_loop(&self) {}
 
     fn setup_logging(&self) {
         let logger = FileAppender::builder().build("log/dev.log").unwrap();

@@ -3,8 +3,9 @@ pub mod zmachine;
 
 extern crate rand;
 
+use std::boxed::Box;
+
 use interfaces::zinterface::ZInterface;
-use zmachine::input_handler::*;
 use zmachine::zmachine::*;
 
 #[cfg(target_os = "emscripten")]
@@ -19,17 +20,20 @@ fn main() {
     // state of the machine. which makes complete sense
     let data = get_program();
 
-    #[cfg(not(target_os = "emscripten"))]
-    let machine = ZMachine::new(data, CliInterface {});
+    let interface = get_interface();
+    interface.clear();
 
-    #[cfg(target_os = "emscripten")]
-    let machine = ZMachine::new(
-        data,
-        WebInterface::new()
-    );
+    let machine = ZMachine::new(data, interface);
+}
 
-    machine.zinterface.clear();
-    machine.zinterface.set_loop();
+#[cfg(not(target_os = "emscripten"))]
+pub fn get_interface() -> CliInterface {
+    CliInterface {}
+}
+
+#[cfg(target_os = "emscripten")]
+pub fn get_interface() -> WebInterface {
+    WebInterface::new()
 }
 
 pub fn get_program() -> Vec<u8> {
@@ -55,17 +59,14 @@ pub fn get_program() -> Vec<u8> {
     data_vec
 }
 
-#[cfg(not(target_os = "emscripten"))]
-pub fn main_loop<T: ZInterface>(machina: &mut ZMachine<CliInterface>) {
+pub fn main_loop<T: ZInterface> (machina: &mut ZMachine<T>) -> bool {
     while let MachineState::Running = machina.state.clone() {
         machina.next_instruction();
     }
 
     match machina.state.clone() {
         MachineState::Restarting => {
-            let data = get_program();
-            *machina = ZMachine::new(data, CliInterface {});
-            machina.next_instruction();
+            return false;
         }
         MachineState::Stopped => {
             machina.zinterface.quit();
@@ -75,26 +76,7 @@ pub fn main_loop<T: ZInterface>(machina: &mut ZMachine<CliInterface>) {
         }
         _ => (),
     };
+
+    return true;
 }
 
-#[cfg(target_os = "emscripten")]
-pub fn main_loop<T: ZInterface>(machina: &mut ZMachine<WebInterface>) {
-    while let MachineState::Running = machina.state.clone() {
-        machina.next_instruction();
-    }
-
-    match machina.state.clone() {
-        MachineState::Restarting => {
-            let data = get_program();
-            *machina = ZMachine::new(data, WebInterface::new());
-            machina.next_instruction();
-        }
-        MachineState::Stopped => {
-            machina.zinterface.quit();
-        }
-        MachineState::TakingInput { ref callback } => {
-            machina.wait_for_input(callback.clone());
-        }
-        _ => (),
-    };
-}
