@@ -16,4 +16,6 @@ impl ZInterface for WebInterface {
     fn quit(&self) {}
 
     fn set_loop(&self) {}
+
+    fn setup_logging(&self) {}
 }

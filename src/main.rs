@@ -13,17 +13,6 @@ use interfaces::web::WebInterface;
 #[cfg(not(target_os = "emscripten"))]
 use interfaces::cli::CliInterface;
 
-#[cfg(not(target_os = "emscripten"))]
-extern crate log;
-#[cfg(not(target_os = "emscripten"))]
-extern crate log4rs;
-#[cfg(not(target_os = "emscripten"))]
-use log::LogLevelFilter;
-#[cfg(not(target_os = "emscripten"))]
-use log4rs::append::file::*;
-#[cfg(not(target_os = "emscripten"))]
-use log4rs::config::{Appender, Config, Logger, Root};
-
 fn main() {
     // machine now takes ownership of the cloned data buffer
     // its mut, because next_instruction can change the
@@ -35,9 +24,6 @@ fn main() {
 
     #[cfg(target_os = "emscripten")]
     let machine = ZMachine::new(data, WebInterface {});
-
-    #[cfg(not(target_os = "emscripten"))]
-    setup_logging();
 
     machine.zinterface.clear();
     machine.zinterface.set_loop();
@@ -108,26 +94,4 @@ pub fn main_loop<T: ZInterface>(machina: &mut ZMachine<WebInterface>) {
         }
         _ => (),
     };
-}
-
-#[cfg(not(target_os = "emscripten"))]
-fn setup_logging() {
-    //setup logger
-
-    let logger = FileAppender::builder().build("log/dev.log").unwrap();
-    let expanded = FileAppender::builder().build("log/expanded.log").unwrap();
-
-    let config = Config::builder()
-        .appender(Appender::builder().build("main", Box::new(logger)))
-        .appender(Appender::builder().build("expanded", Box::new(expanded)))
-        .logger(
-            Logger::builder()
-                .appender("expanded")
-                .additive(false)
-                .build("rusty_z::zmachine", LogLevelFilter::Info),
-        )
-        .build(Root::builder().appender("main").build(LogLevelFilter::Warn))
-        .unwrap();
-
-    log4rs::init_config(config).unwrap();
 }

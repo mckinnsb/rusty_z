@@ -13,4 +13,5 @@ pub trait ZInterface {
     // wasn't ready for Zork I/II/III (but other version 3 games make heavy use of it)
     fn print_to_header(&self, left_side: &str, right_side: &str);
     fn set_loop(&self);
+    fn setup_logging(&self);
 }
