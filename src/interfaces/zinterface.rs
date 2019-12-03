@@ -14,3 +14,4 @@ pub trait ZInterface : Sized {
     fn print_to_header(&self, left_side: &str, right_side: &str);
     fn setup_logging(&self);
 }
+
