@@ -23,7 +23,11 @@ impl WebInterface {
 impl ZInterface for WebInterface {
     fn clear(&self) {}
 
-    fn print_to_main(&self, str: &str) {}
+    fn print_to_main(&self, str: &str) {
+        js! { @(no_return)
+            console.log(str);
+        }
+    }
 
     fn print_to_header(&self, left_side: &str, right_side: &str) {}
 
