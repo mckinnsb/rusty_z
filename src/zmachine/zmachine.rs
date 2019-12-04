@@ -1,7 +1,7 @@
 extern crate rand;
 use self::rand::*;
 
-use super::super::interfaces::zinterface::ZInterface;
+use super::super::interfaces::zinterface::*;
 use super::opcode::*;
 
 // represents the current zmachine
@@ -169,7 +169,7 @@ pub struct ZMachine<T: ZInterface> {
     pub header: Header,
 
     // the interface to the GUI, so ZMachine can print/take input
-    pub zinterface: T,
+    pub zinterface: Rc<T>,
 
     // ALL of the memory, this represents the entire state of the machine
     // this is loaded in at first , then modified by save files, then
@@ -239,6 +239,7 @@ impl<T: ZInterface> ZMachine<T> {
         // note that pc_start is a u16, but our pointer is a u32. this is because
 
         let pc_start = header.pc_start as u32;
+        let interface = Rc::new(interface);
 
         let machine = ZMachine::<T> {
             call_stack: Stack {
@@ -587,6 +588,22 @@ impl<T: ZInterface> ZMachine<T> {
         }
     }
 
+    // the machine always stores variables during or at the end of instruction calls,
+    // and accesses variables before processing the call;
+    pub fn store_variable(&mut self, address: u8, value: u16) {
+        // println!( "storing: {} at {}", value, address );
+
+        match address {
+            0 => self.call_stack.stack.push(value),
+            index @ 0x01..=0x0f => self.call_stack.store_local_variable(index, value),
+            global @ 0x10..=0xff => {
+                // offset by 16 to get the global "index"
+                let index = global - 0x10;
+                self.get_global_variables_view()
+                    .write_global(index as u16, value);
+            }
+        }
+    }
     // wait for input, and on input, hand it to whatever code/op was waiting
     // for it
     pub fn wait_for_input(&mut self, callback: Rc<dyn Fn(String)>) {
@@ -613,23 +630,6 @@ impl<T: ZInterface> ZMachine<T> {
                 self.call_stack.stack[last] = value;
             }
             _ => self.store_variable(address, value),
-        }
-    }
-
-    // the machine always stores variables during or at the end of instruction calls,
-    // and accesses variables before processing the call;
-    pub fn store_variable(&mut self, address: u8, value: u16) {
-        // println!( "storing: {} at {}", value, address );
-
-        match address {
-            0 => self.call_stack.stack.push(value),
-            index @ 0x01..=0x0f => self.call_stack.store_local_variable(index, value),
-            global @ 0x10..=0xff => {
-                // offset by 16 to get the global "index"
-                let index = global - 0x10;
-                self.get_global_variables_view()
-                    .write_global(index as u16, value);
-            }
         }
     }
 }

@@ -4,11 +4,12 @@ extern crate termion;
 
 use std::process;
 
-use self::termion::{clear, color, cursor, style};
 use self::log::LogLevelFilter;
 use self::log4rs::append::file::*;
 use self::log4rs::config::{Appender, Config, Logger, Root};
+use self::termion::{clear, color, cursor, style};
 
+use super::super::zmachine::zmachine::*;
 use super::zinterface::*;
 
 pub struct CliInterface {}
@@ -83,5 +84,26 @@ impl ZInterface for CliInterface {
             .unwrap();
 
         log4rs::init_config(config).unwrap();
+    }
+
+    fn setup_loop<F>(&self, mut main_loop: F) -> LoopState
+    where
+        F: 'static + FnMut() -> u8,
+    {
+        let mut result;
+
+        loop {
+            let raw = main_loop();
+            result = raw.into();
+
+            match result {
+                LoopState::Quitting => break,
+                LoopState::Restarting => break,
+                LoopState::Error => break,
+                LoopState::Running => (),
+            }
+        }
+
+        return result;
     }
 }

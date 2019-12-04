@@ -3,9 +3,10 @@ extern crate stdweb;
 use std::cell::*;
 use std::io::*;
 use std::rc::*;
+use stdweb::*;
 
 use super::super::zmachine::input_handler::*;
-use super::zinterface::ZInterface;
+use super::zinterface::*;
 
 pub struct WebInterface {
     pub indicator: Rc<RefCell<WebInputIndicator>>,
@@ -81,6 +82,24 @@ impl ZInterface for WebInterface {
     fn quit(&self) {}
 
     fn setup_logging(&self) {}
+
+    fn setup_loop<F>(&self, mut main_loop: F) -> LoopState
+    where
+        F: 'static + FnMut() -> u8,
+    {
+        js! { @(no_return)
+            let callback = @{main_loop};
+            
+            function loop(time) {
+                requestAnimationFrame(loop);
+                callback();
+            }
+
+            requestAnimationFrame(loop);
+        };
+
+        LoopState::Running
+    }
 }
 
 pub struct WebInputIndicator {

@@ -2,14 +2,18 @@ pub mod interfaces;
 pub mod zmachine;
 
 extern crate rand;
+#[cfg(target_os = "emscripten")]
+extern crate stdweb;
 
-use std::boxed::Box;
+use std::rc::*;
 
-use interfaces::zinterface::ZInterface;
+use interfaces::zinterface::*;
 use zmachine::zmachine::*;
 
 #[cfg(target_os = "emscripten")]
 use interfaces::web::WebInterface;
+#[cfg(target_os = "emscripten")]
+use stdweb::*;
 
 #[cfg(not(target_os = "emscripten"))]
 use interfaces::cli::CliInterface;
@@ -23,7 +27,17 @@ fn main() {
     let interface = get_interface();
     interface.clear();
 
-    let machine = ZMachine::new(data, interface);
+    let mut machine = ZMachine::new(data, interface);
+    let interface = Rc::clone(&machine.zinterface);
+
+    // the loop setup has to happen in main() or a function called from main()
+    // if we are using a closure, because of the static lifetime requirement
+    // when we use a reference, which is automatic when passing a function
+    interface.setup_loop(move || main_loop(&mut machine));
+
+    // once we get off emscripten, we can remove this
+    #[cfg(target_os = "emscripten")]
+    stdweb::event_loop();
 }
 
 #[cfg(not(target_os = "emscripten"))]
@@ -59,17 +73,18 @@ pub fn get_program() -> Vec<u8> {
     data_vec
 }
 
-pub fn main_loop<T: ZInterface> (machina: &mut ZMachine<T>) -> bool {
+
+pub fn main_loop<T: ZInterface> (machina: &mut ZMachine<T>) -> u8 {
     while let MachineState::Running = machina.state.clone() {
         machina.next_instruction();
     }
 
     match machina.state.clone() {
         MachineState::Restarting => {
-            return false;
+            return LoopState::Restarting as u8;
         }
         MachineState::Stopped => {
-            machina.zinterface.quit();
+            return LoopState::Quitting as u8;
         }
         MachineState::TakingInput { ref callback } => {
             machina.wait_for_input(callback.clone());
@@ -77,6 +92,6 @@ pub fn main_loop<T: ZInterface> (machina: &mut ZMachine<T>) -> bool {
         _ => (),
     };
 
-    return true;
+    return LoopState::Running as u8;
 }
 
