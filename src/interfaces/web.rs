@@ -25,6 +25,7 @@ impl ZInterface for WebInterface {
 
     fn print_to_main(&self, str: &str) {
         js! { @(no_return)
+            let str = @{str};
             console.log(str);
         }
     }
