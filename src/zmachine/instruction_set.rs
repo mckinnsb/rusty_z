@@ -595,7 +595,7 @@ pub fn mod_fn<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
 }
 
 pub fn new_line<T: ZInterface>(_: &mut OpCode<T>, machine: &mut ZMachine<T>) {
-    machine.zinterface.print_to_main("\n");
+    machine.zinterface.as_ref().print_to_main("\n");
 }
 
 //uh... do nothing!

@@ -27,7 +27,7 @@ pub trait ZInterface: Sized {
     fn quit(&self);
     fn clear(&self);
     fn read_next_line(&self, buf: &mut String) -> Option<usize>;
-    fn print_to_main(&self, &str);
+    fn print_to_main(&self, main: &str);
 
     // It's interesting, the ZMachine actually has this concept embedded in the opcodes;
     // show_status points to two objects that each must be displayed on the top left

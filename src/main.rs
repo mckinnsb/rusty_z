@@ -3,12 +3,18 @@ pub mod zmachine;
 
 extern crate rand;
 #[cfg(target_os = "emscripten")]
+#[macro_use]
 extern crate stdweb;
 
 use std::rc::*;
 
 use interfaces::zinterface::*;
 use zmachine::zmachine::*;
+
+#[cfg(target_os = "emscripten")]
+use interfaces::web::WebUpdate;
+#[cfg(target_os = "emscripten")]
+js_serializable!(WebUpdate);
 
 #[cfg(target_os = "emscripten")]
 use interfaces::web::WebInterface;
@@ -33,10 +39,17 @@ fn main() {
     // the loop setup has to happen in main() or a function called from main()
     // if we are using a closure, because of the static lifetime requirement
     // when we use a reference, which is automatic when passing a function
+    //
+    // note: cli blocks here for now
     interface.setup_loop(move || main_loop(&mut machine));
 
-    // once we get off emscripten, we can remove this
     #[cfg(target_os = "emscripten")]
+    spawn_local(async move {
+        let mut publish = interface.publisher.borrow_mut();
+        let future = publish.subscribe();
+        future.await;
+    });
+
     stdweb::event_loop();
 }
 
@@ -72,7 +85,6 @@ pub fn get_program() -> Vec<u8> {
 
     data_vec
 }
-
 
 pub fn main_loop<T: ZInterface> (machina: &mut ZMachine<T>) -> u8 {
     while let MachineState::Running = machina.state.clone() {

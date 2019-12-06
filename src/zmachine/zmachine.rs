@@ -609,7 +609,7 @@ impl<T: ZInterface> ZMachine<T> {
     pub fn wait_for_input(&mut self, callback: Rc<dyn Fn(String)>) {
         let mut buf = String::new();
         let result = match self.zinterface.read_next_line(&mut buf) {
-            Some(x) => {
+            Some(_) => {
                 callback(buf.to_string());
                 true
             }
