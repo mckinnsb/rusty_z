@@ -5,4 +5,3 @@ pub mod cli;
 
 #[cfg(target_os = "emscripten")]
 pub mod web;
-

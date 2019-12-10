@@ -1,6 +1,6 @@
 extern crate serde_derive;
 
-use self::serde_derive::{Serialize};
+use self::serde_derive::Serialize;
 
 #[derive(Copy, Clone, Serialize)]
 #[repr(u8)]

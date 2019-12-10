@@ -5,10 +5,10 @@ use super::header::*;
 use super::memory_view::MemoryView;
 use super::object_properties_view::*;
 use super::object_view::ObjectView;
-use super::zstring::*;
 use super::opcode::*;
 use super::zmachine::MachineState;
 use super::zmachine::ZMachine;
+use super::zstring::*;
 
 use std::cmp;
 
@@ -970,7 +970,7 @@ pub fn sread<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     show_status(code, machine);
 
     // we might want to change where this is in the future, it seems like
-    // we might not want to rely on an opcode to flush the output - 
+    // we might not want to rely on an opcode to flush the output -
     // this isn't necessary behavior for the ZMachine according to the standards
     // document; the only opcode that flushes is set_colour which isn't available
     // until version 5 (thats because it dumps the previous color before changing the palette
@@ -982,7 +982,7 @@ pub fn sread<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
 
     match io::stdout().flush() {
         Err(_) => panic!("could not flush the output!"),
-        Ok(_) => ()
+        Ok(_) => (),
     };
 
     let (text_buffer, parse_buffer) = (code.operands[0].get_value(), code.operands[1].get_value());

@@ -8,6 +8,7 @@ target/*
 
 log/*
 
+Session.vim
 config.ru
 .sass-cache/
 source/

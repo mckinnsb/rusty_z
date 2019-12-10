@@ -2,8 +2,8 @@
 
 use super::super::interfaces::zinterface::ZInterface;
 use super::global_variables_view::*;
-use super::memory_view::*;
 use super::instruction_set;
+use super::memory_view::*;
 use super::zmachine::Stack;
 use super::zmachine::ZMachine;
 use std::fmt;
@@ -399,7 +399,7 @@ impl<T: ZInterface> OpCode<T> {
                 // the fallthrough for be , the code for extended opcodes,
                 // falls through in form_short_opcode
                 0x80..=0xbf => OpCode::form_short_opcode(code_ref, word[0]),
-                0xc0..=0xff => OpCode::form_variable_opcode(code_ref, word[0], word[1])
+                0xc0..=0xff => OpCode::form_variable_opcode(code_ref, word[0], word[1]),
             }
         }
 
@@ -587,7 +587,6 @@ impl<T: ZInterface> OpCode<T> {
             code.operand_count = code.operand_count + 1;
         }
     }
-
 
     pub fn read_variables(
         &mut self,

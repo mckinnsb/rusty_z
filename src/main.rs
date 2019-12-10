@@ -3,23 +3,21 @@ pub mod zmachine;
 
 extern crate rand;
 #[cfg(target_os = "emscripten")]
-#[macro_use]
 extern crate stdweb;
 
-use std::rc::*;
+use std::{cell::*, rc::*};
 
 use interfaces::zinterface::*;
 use zmachine::zmachine::*;
 
 #[cfg(target_os = "emscripten")]
-use interfaces::web::WebUpdate;
-#[cfg(target_os = "emscripten")]
-js_serializable!(WebUpdate);
+use {
+    interfaces::web::{WebInterface, WebStream, WebUpdate},
+    stdweb::*,
+};
 
 #[cfg(target_os = "emscripten")]
-use interfaces::web::WebInterface;
-#[cfg(target_os = "emscripten")]
-use stdweb::*;
+js_serializable!(WebUpdate);
 
 #[cfg(not(target_os = "emscripten"))]
 use interfaces::cli::CliInterface;
@@ -30,7 +28,7 @@ fn main() {
     // state of the machine. which makes complete sense
     let data = get_program();
 
-    let interface = get_interface();
+    let mut interface = get_interface();
     interface.clear();
 
     let mut machine = ZMachine::new(data, interface);
@@ -45,12 +43,9 @@ fn main() {
 
     #[cfg(target_os = "emscripten")]
     spawn_local(async move {
-        let mut publish = interface.publisher.borrow_mut();
-        let future = publish.subscribe();
-        future.await;
+        let mut stream = WebStream::new(&interface.publisher);
+        stream.subscribe().await;
     });
-
-    stdweb::event_loop();
 }
 
 #[cfg(not(target_os = "emscripten"))]
@@ -86,7 +81,7 @@ pub fn get_program() -> Vec<u8> {
     data_vec
 }
 
-pub fn main_loop<T: ZInterface> (machina: &mut ZMachine<T>) -> u8 {
+pub fn main_loop<T: ZInterface>(machina: &mut ZMachine<T>) -> u8 {
     while let MachineState::Running = machina.state.clone() {
         machina.next_instruction();
     }
@@ -106,4 +101,3 @@ pub fn main_loop<T: ZInterface> (machina: &mut ZMachine<T>) -> u8 {
 
     return LoopState::Running as u8;
 }
-
