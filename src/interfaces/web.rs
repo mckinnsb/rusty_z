@@ -3,7 +3,10 @@ extern crate serde_derive;
 
 use std::{cell::*, pin::Pin, rc::*};
 
-use stdweb::*;
+use stdweb::{
+    *,
+    unstable::TryInto
+};
 
 use self::{
     futures::task::*,
@@ -60,8 +63,6 @@ impl ZInterface for WebInterface {
     fn clear(&self) {}
 
     fn print_to_main(&self, str: &str) {
-        js! { console.log("print to main:" + @{str}); }
-
         self.publisher.borrow_mut().send(WebUpdate {
             source: "main".to_string(),
             content: str.to_string(),
@@ -69,8 +70,6 @@ impl ZInterface for WebInterface {
     }
 
     fn print_to_header(&self, left_side: &str, right_side: &str) {
-        js! { console.log("print to right header:" + @{right_side}); }
-
         self.publisher.borrow_mut().send(WebUpdate {
             source: "left".to_string(),
             content: left_side.to_string(),
@@ -128,10 +127,6 @@ impl WebPublisher {
             window.RustyZ.subscribe = function(callbackFn) {
                 this.callbackFn = callbackFn;
             };
-
-            window.RustyZ.subscribe(function(e) {
-                console.log(e);
-            });
         };
 
         publisher
@@ -151,6 +146,39 @@ impl WebStream {
         }
     }
 
+    fn register_for_wake(context: &mut Context) {
+        let waker = Rc::new(context.waker().clone());
+        let wake_up = move || {
+            waker.wake_by_ref();
+        };
+
+        // note we are doing context re-awakening almost entirely in
+        // javascript
+
+        js! {
+            window.RustyZ = window.RustyZ || {};
+
+            var RustyZ = window.RustyZ;
+
+            if (RustyZ.wakeId) {
+                if (RustyZ.wakeFunction) {
+                    RustyZ.wakeFunction.drop();
+                }
+
+                window.cancelAnimationFrame(RustyZ.wakeId);
+            }
+
+            RustyZ.wakeFunction = @{wake_up};
+
+            RustyZ.wakeId = window.requestAnimationFrame(function() {
+                RustyZ.wakeFunction();
+                RustyZ.wakeFunction.drop();
+                RustyZ.wakeFunction = null;
+                RustyZ.wakeId = null;
+            });
+        }
+    }
+
     pub async fn subscribe(&mut self) {
         self.by_ref()
             .for_each(|x| {
@@ -164,12 +192,26 @@ impl WebStream {
     }
 }
 
+
 impl Stream for WebStream {
     type Item = WebUpdate;
 
     fn poll_next(self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<WebUpdate>> {
         if self.terminated {
             return Poll::Ready(None);
+        }
+
+        // very, very simple for now, one sub, one consumer
+        let callback_exists = js! {
+            var callbackExists = !!(window.RustyZ && window.RustyZ.callbackFn);
+            return callbackExists;
+        };
+
+        let callback_exists: bool = callback_exists.try_into().unwrap();
+
+        if callback_exists == false {
+            WebStream::register_for_wake(context);
+            return Poll::Pending;
         }
 
         let update = {
@@ -191,40 +233,11 @@ impl Stream for WebStream {
 
         match update {
             None => {
-                let waker = Rc::new(context.waker().clone());
-                let wake_up = move || {
-                    waker.wake_by_ref();
-                };
-
-                // note we are doing context re-awakening almost entirely in
-                // javascript
-
-                js! {
-                    window.RustyZ = window.RustyZ || {};
-
-                    var RustyZ = window.RustyZ;
-
-                    if (RustyZ.wakeId) {
-                        if (RustyZ.wakeFunction) {
-                            RustyZ.wakeFunction.drop();
-                        }
-
-                        window.cancelAnimationFrame(RustyZ.wakeId);
-                    }
-
-                    RustyZ.wakeFunction = @{wake_up};
-
-                    RustyZ.wakeId = window.requestAnimationFrame(function() {
-                        RustyZ.wakeFunction();
-                        RustyZ.wakeFunction.drop();
-                        RustyZ.wakeFunction = null;
-                        RustyZ.wakeId = null;
-                    });
-                }
-
+                WebStream::register_for_wake(context);
                 Poll::Pending
             }
             Some(x) => Poll::Ready(Some(x)),
         }
     }
+
 }
