@@ -31,6 +31,8 @@
         content.appendChild(breakNode);
         content.appendChild(breakNode);
 
+        RustyZ.update(submitted);
+
         setTimeout( function () {
           //we don't include the form because it is offset/over the content
           var height = (content.offsetHeight + header.offsetHeight);

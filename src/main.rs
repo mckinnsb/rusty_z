@@ -12,7 +12,7 @@ use zmachine::zmachine::*;
 
 #[cfg(target_os = "emscripten")]
 use {
-    interfaces::web::{WebInterface, WebStream, WebUpdate},
+    interfaces::web::{WebInterface, WebPublisher, WebStream, WebUpdate},
     stdweb::*,
 };
 
@@ -44,7 +44,7 @@ fn main() {
     #[cfg(target_os = "emscripten")]
     spawn_local(async move {
         let mut stream = WebStream::new(&interface.publisher);
-        stream.subscribe().await;
+        WebPublisher::subscribe(&mut stream).await;
     });
 }
 

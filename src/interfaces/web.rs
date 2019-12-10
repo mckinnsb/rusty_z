@@ -18,6 +18,7 @@ use super::zinterface::*;
 
 pub struct WebInputIndicator {
     pub input_sent: bool,
+    pub input: String
 }
 
 // We are using Rc<RefCell> for the publisher as well as the indicator
@@ -51,13 +52,39 @@ pub struct WebUpdate {
 impl WebInterface {
     pub fn new() -> WebInterface {
         let interface = WebInterface {
-            indicator: Rc::new(RefCell::new(WebInputIndicator { input_sent: false })),
+            indicator: Rc::new(RefCell::new(WebInputIndicator { 
+                input_sent: false,
+                input: "".to_string()
+            })),
             publisher: Rc::new(RefCell::new(WebPublisher::new())),
+        };
+
+        let callback_indicator = Rc::clone(&interface.indicator);
+
+        let callback = move |input: String| {
+            callback_indicator.borrow_mut().input_sent = true;
+            callback_indicator.borrow_mut().input = input;
+        };
+
+        js! {
+            window.RustyZ = window.RustyZ || {};
+            window.RustyZ.update = @{callback};
         };
 
         interface
     }
 }
+
+impl Drop for WebInterface {
+    fn drop (&mut self) {
+        js! {
+            window.RustyZ.update.drop();
+            window.RustyZ.loopCallback.drop();
+            cancelAnimationFrame(window.RustyZ.loopCallbackId);
+        }
+    }
+}
+
 
 impl ZInterface for WebInterface {
     fn clear(&self) {}
@@ -82,7 +109,16 @@ impl ZInterface for WebInterface {
     }
 
     fn read_next_line(&self, buf: &mut String) -> Option<usize> {
-        return None;
+        let input_sent = self.indicator.borrow().input_sent;
+
+        if input_sent == false {
+            return None;
+        }
+
+        *buf = self.indicator.borrow().input.clone();
+        self.indicator.borrow_mut().input_sent = false;
+
+        Some(buf.len())
     }
 
     fn quit(&self) {}
@@ -94,14 +130,16 @@ impl ZInterface for WebInterface {
         F: 'static + FnMut() -> u8,
     {
         js! { @(no_return)
-            let callback = @{main_loop};
+            window.RustyZ = window.RustyZ || {};
 
-            function loop(time) {
-                requestAnimationFrame(loop);
-                callback();
+            window.RustyZ.loopCallback = @{main_loop};
+
+            function mainLoop(time) {
+                window.RustyZ.loopCallback();
+                window.RustyZ.loopCallBackId = requestAnimationFrame(mainLoop);
             }
 
-            requestAnimationFrame(loop);
+            window.RustyZ.loopCallBackId = requestAnimationFrame(mainLoop);
         };
 
         LoopState::Running
@@ -130,6 +168,18 @@ impl WebPublisher {
         };
 
         publisher
+    }
+
+    pub async fn subscribe(stream: &mut WebStream) {
+        stream.by_ref()
+              .for_each(|x| {
+                js! { @(no_return)
+                    window.RustyZ.callbackFn(@{&x});
+                };
+
+                future::ready(())
+            })
+            .await
     }
 
     pub fn send(&mut self, update: WebUpdate) {
@@ -179,19 +229,7 @@ impl WebStream {
         }
     }
 
-    pub async fn subscribe(&mut self) {
-        self.by_ref()
-            .for_each(|x| {
-                js! { @(no_return)
-                    window.RustyZ.callbackFn(@{&x});
-                };
-
-                future::ready(())
-            })
-            .await
-    }
 }
-
 
 impl Stream for WebStream {
     type Item = WebUpdate;
