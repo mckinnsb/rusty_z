@@ -1,5 +1,3 @@
-use std::rc::*;
-use std::cell::RefCell;
 use super::memory_view::*;
 use super::object_properties_view::*;
 
@@ -10,8 +8,6 @@ use super::object_properties_view::*;
 //
 // this is the size of the addr of the properties pointer
 // technically it can be anywhere in dynamic memory
-
-const properties_length: u32 = 2;
 
 pub struct ObjectView {
     pub object_id: u16,
@@ -33,7 +29,6 @@ impl ObjectView {
     // an object can have only one child - everything else in the "bag" is a sibling
     // of the child
     pub fn get_child(&self) -> u16 {
-
         // first we start from the beginning of the object table
         // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length +
@@ -42,22 +37,18 @@ impl ObjectView {
 
         let child_id = self.view.read_at_head(pointer_position);
         child_id as u16
-
     }
 
     pub fn get_parent(&self) -> u16 {
-
         // first we start from the beginning of the object table
         // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length;
         let parent_id = self.view.read_at_head(pointer_position);
 
         parent_id as u16
-
     }
 
     pub fn get_sibling(&self) -> u16 {
-
         // first we start from the beginning of the object table
         // then offset by attribute length + all relatives length
         let pointer_position = self.attributes_length +
@@ -66,11 +57,9 @@ impl ObjectView {
 
         let sibling_id = self.view.read_at_head(pointer_position);
         sibling_id as u16
-
     }
 
     pub fn get_properties_table_view(&self) -> ObjectPropertiesView {
-
         // println!("starting: {}", self.view.pointer);
         // first we start from the beginning of the object table
         // then offset by attribute length + all relatives length
@@ -81,14 +70,13 @@ impl ObjectView {
         let pointer = self.view.read_u16_at_head(pointer_position) as u32;
 
         ObjectPropertiesView::create(self.object_id, pointer, &self.defaults_view, &self.view)
-
     }
 
     pub fn has_attribute(&self, attribute: u16) -> bool {
         // this will also have to change with the new version
         // v4 may have up to 48
         match attribute {
-            i @ 0...31 => {
+            i @ 0..=31 => {
                 ObjectView::is_bit_set_in_u32((31 - i) as u8, self.view.read_u32_at_head(0))
             }
             _ => panic!("attempt to read an invalid attribute"),
@@ -115,7 +103,6 @@ impl ObjectView {
                                self.related_obj_length * 2;
 
         self.view.write_at_head(pointer_position, child_id as u8);
-
     }
 
     pub fn set_parent(&self, parent_id: u16) {
@@ -126,7 +113,6 @@ impl ObjectView {
         // so parent has no relative offset after attributes
 
         self.view.write_at_head(pointer_position, parent_id as u8);
-
     }
 
     pub fn set_sibling(&self, sibling_id: u16) {
@@ -138,32 +124,29 @@ impl ObjectView {
         // so parent has no relative offset after attributes
 
         self.view.write_at_head(pointer_position, sibling_id as u8);
-
     }
 
     pub fn set_attribute(&self, attribute: u16) {
         // this will also have to change with the new version
         // v4 may have up to 48
         match attribute {
-            i @ 0...31 => {
+            i @ 0..=31 => {
                 let new_attr_mask = self.view.read_u32_at_head(0) | (1 << (31 - i as u32));
                 self.view.write_u32_at_head(0, new_attr_mask);
             }
             _ => panic!("attempt to read an invalid attribute"),
         }
-
     }
 
     pub fn unset_attribute(&self, attribute: u16) {
         // this will also have to change with the new version
         // v4 may have up to 48
         match attribute {
-            i @ 0...31 => {
+            i @ 0..=31 => {
                 let new_attr_mask = self.view.read_u32_at_head(0) & !(1 << (31 - i as u32));
                 self.view.write_u32_at_head(0, new_attr_mask);
             }
             _ => panic!("attempt to read an invalid attribute"),
         }
-
     }
 }

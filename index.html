@@ -35,6 +35,14 @@
       width: 100%;
     }
 
+    #header .left {
+      float: left;
+    }
+
+    #header .right {
+      float: right;
+    }
+
     form input:focus {
       background-color: darkgray;
       outline: none;
@@ -78,7 +86,11 @@
 
     <section id="main">
 
-      <section id="header">&nbsp;</section>
+      <section id="header">
+        <div class="left"></div>
+        <div class="right"></div>
+      </section>
+
       <section id="content"></section>
 
       <form id="form" action="javascript: void(0);">
@@ -90,55 +102,7 @@
 
     <!-- just some stuff to make it easier to play , which also needs priority over the asm -->
 
-    <script>
-
-        (function() {
-
-          var main = document.getElementById("main");
-          var content = document.getElementById("content");
-          var header = document.getElementById("header");
-
-          main.addEventListener( "click", function () {
-            var input = document.getElementById("player_input");
-            input.focus();
-          } );
-
-          var form = document.getElementById( "form" );
-          var input = document.getElementById( "player_input" );
-
-          //starting to learn you should do more on the js side than the rust side
-          form.addEventListener( "submit", function () {
-
-            var submitted = input.value;
-
-            input.dataset.value = input.value;
-            input.value = "";
-            input.blur();
-
-            content.append(submitted);
-            var breakNode = document.createElement( "br" );
-            content.appendChild(breakNode);
-            content.appendChild(breakNode);
-
-            setTimeout( function () {
-              //we don't include the form because it is offset/over the content
-              var height = (content.offsetHeight + header.offsetHeight);
-              var container_height = main.offsetHeight;
-
-              if( height > container_height ) {
-                var diff = (height - container_height);
-                main.style.paddingTop = -1 * diff + "px";
-                header.style.top = diff + (header.offsetHeight - 2) + "px";
-              }
-            }, 50 );
-
-          } );
-
-        }());
-
-    </script>
-
     <script type="text/javascript" src="target/asmjs-unknown-emscripten/debug/rusty_z.js" ></script> 
-
+    <script type="text/javascript" src="index.js" ></script> 
   </body>
 </html>

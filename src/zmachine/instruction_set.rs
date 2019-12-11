@@ -1,13 +1,14 @@
 extern crate rand;
-use super::super::object_properties_view::*;
-use super::super::zstring::*;
-use super::super::memory_view::MemoryView;
-use super::super::object_view::ObjectView;
+
+use super::super::interfaces::zinterface::ZInterface;
+use super::header::*;
+use super::memory_view::MemoryView;
+use super::object_properties_view::*;
+use super::object_view::ObjectView;
 use super::opcode::*;
-use super::ZMachine;
-use super::super::header::*;
-use super::MachineState;
-use super::Stack;
+use super::zmachine::MachineState;
+use super::zmachine::ZMachine;
+use super::zstring::*;
 
 use std::cmp;
 
@@ -15,7 +16,6 @@ use std::cmp;
 use std::io;
 use std::io::Write;
 use std::str::SplitWhitespace;
-use std::process;
 
 use std::rc::*;
 
@@ -40,7 +40,7 @@ use std::rc::*;
 // part of zmachine, but its really still an op
 // code, albiet a really effing powerful one,
 // and that would get awkward abstraction-wise
-pub fn and(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn and<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.store = true;
     code.result = code.operands[0].get_value() & code.operands[1].get_value();
     // done
@@ -51,20 +51,18 @@ pub fn and(code: &mut OpCode, machine: &mut ZMachine) {
 //
 // zmachine takes care of the 'storing' part
 
-pub fn add(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn add<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.store = true;
-    code.result = ((code.operands[0].get_value() as i16) +
-                   (code.operands[1].get_value() as i16)) as u16;
+    code.result =
+        ((code.operands[0].get_value() as i16) + (code.operands[1].get_value() as i16)) as u16;
     // yay!
 }
 
-pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn call<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     // move program counter
     // address is actually multiplied by a constant, depending on the version #
     // we just support 3 here, so it is always 2
-    let mut address = (code.operands[0].get_value() as u32) * 2;
+    let address = (code.operands[0].get_value() as u32) * 2;
 
     // println!("////////////// calling {:x}", address);
 
@@ -169,19 +167,17 @@ pub fn call(code: &mut OpCode, machine: &mut ZMachine) {
     }
 
     // done!
-
 }
 
 // this clears a bit in the attributes table
-pub fn clear_attr(code: &mut OpCode, machine: &mut ZMachine) {
-    let (object, attr) = (code.operands[0].get_value(), 
-                          code.operands[1].get_value());
+pub fn clear_attr<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
+    let (object, attr) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     machine.get_object_view(object).unset_attribute(attr);
     // done
 }
 
-pub fn dec(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn dec<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let variable = code.operands[0].get_value();
 
     let mut current = machine.read_variable(variable as u8) as i16;
@@ -196,11 +192,13 @@ pub fn dec(code: &mut OpCode, machine: &mut ZMachine) {
 // this is not a store function, it actually operates under different
 // rules in which the stack is not popped when read or written to
 
-pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn dec_chk<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.branch = true;
 
-    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
+    let (variable, value) = (
+        code.operands[0].get_value(),
+        code.operands[1].get_value() as i16,
+    );
 
     let mut current = machine.read_variable(variable as u8) as i16;
     current -= 1;
@@ -213,9 +211,7 @@ pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
     }
 
     // done
-
 }
-
 
 // although not officially documented, this code exists, and was probably
 // used for debugging. interpreters are allowed to:
@@ -223,12 +219,11 @@ pub fn dec_chk(code: &mut OpCode, machine: &mut ZMachine) {
 // 2) use it for debugging
 //
 // it's not a "no-op", strictly speaking, but for our purposes it is.
-pub fn debug(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn debug<T: ZInterface>(_: &mut OpCode<T>, _: &mut ZMachine<T>) {}
 
 // signed division, should halt interpreter on divide by zero ( the inform
 // compiler should guarantee that never happens )
-pub fn div(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn div<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.store = true;
 
     let (dividend, divisor) = (code.operands[0].get_value(), code.operands[1].get_value());
@@ -238,39 +233,34 @@ pub fn div(code: &mut OpCode, machine: &mut ZMachine) {
     }
 
     code.result = (dividend as i16 / divisor as i16) as u16;
-
 }
 
 // gets the child id of the object
-pub fn get_child(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn get_child<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
     code.branch = true;
 
     let object = code.operands[0].get_value();
     code.result = machine.get_object_view(object).get_child();
     // done
-
 }
 
 // gets the parent id of the object
-pub fn get_parent(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn get_parent<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
 
     let object = code.operands[0].get_value();
     code.result = machine.get_object_view(object).get_parent();
     // done
-
 }
 
-pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn get_prop<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
 
     let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
 
-    let value = machine.get_object_view(object)
+    let value = machine
+        .get_object_view(object)
         .get_properties_table_view()
         .get_property(property as u8)
         .value;
@@ -279,11 +269,9 @@ pub fn get_prop(code: &mut OpCode, machine: &mut ZMachine) {
     // println!("****");
 
     code.result = value;
-
 }
 
-pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn get_prop_len<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
 
     // we subtract one because the size byte itself is actually 1 below
@@ -301,21 +289,19 @@ pub fn get_prop_len(code: &mut OpCode, machine: &mut ZMachine) {
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
     code.result = size as u16;
-
 }
 
-pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn get_prop_addr<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
 
     let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     //we add one, because we are actually returning the "property address"
     //not the size byte address
-    code.result = machine.get_object_view(object)
+    code.result = machine
+        .get_object_view(object)
         .get_properties_table_view()
         .get_property_addr(property as u8) as u16;
-
 }
 
 // this gets the next property of the property listed,
@@ -325,17 +311,18 @@ pub fn get_prop_addr(code: &mut OpCode, machine: &mut ZMachine) {
 // and in either case, returns the id of the next property
 //
 // if the property specified is non-existant, the interpreter should halt.
-pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn get_next_prop<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
 
-    let (object, property) = (code.operands[0].get_value(), code.operands[1].get_value() as u8);
+    let (object, property) = (
+        code.operands[0].get_value(),
+        code.operands[1].get_value() as u8,
+    );
 
     let property_view = machine.get_object_view(object).get_properties_table_view();
 
     // this was not appropriately being done before
     let size_byte = {
-
         let info = property_view.get_property_info(property);
 
         let addr = match info.addr {
@@ -345,18 +332,15 @@ pub fn get_next_prop(code: &mut OpCode, machine: &mut ZMachine) {
 
         let next_addr = addr + info.size as u32;
         property_view.view.read_at_head(next_addr)
-
     };
 
     let ObjectPropertyInfo { id, .. } =
         ObjectPropertiesView::get_object_property_from_size_byte(size_byte);
 
     code.result = id as u16;
-
 }
 
-pub fn get_sibling(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn get_sibling<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
     code.branch = true;
 
@@ -365,25 +349,24 @@ pub fn get_sibling(code: &mut OpCode, machine: &mut ZMachine) {
 
     // println!("slibling is {}", code.result);
     // done
-
 }
 
-pub fn inc(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn inc<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let variable = code.operands[0].get_value();
 
     let mut current = machine.read_variable(variable as u8) as i16;
     current += 1;
 
     machine.write_variable_in_place(variable as u8, current as u16);
-
 }
 
-pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn inc_chk<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.branch = true;
 
-    let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value() as i16);
+    let (variable, value) = (
+        code.operands[0].get_value(),
+        code.operands[1].get_value() as i16,
+    );
 
     let mut current = machine.read_variable(variable as u8) as i16;
 
@@ -394,10 +377,9 @@ pub fn inc_chk(code: &mut OpCode, machine: &mut ZMachine) {
         false => code.result = 0,
         true => code.result = 1,
     }
-
 }
 
-pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn input_stream<T: ZInterface>(_: &mut OpCode<T>, _: &mut ZMachine<T>) {
     unimplemented!();
 }
 
@@ -413,8 +395,7 @@ pub fn input_stream(code: &mut OpCode, machine: &mut ZMachine) {
 // you can do insert_obj 0, 1 to basically remove everything from a
 // bag, and insert_obj 1, 0 to basically remove an object from a bag
 // its more or less up to the author to decide what they want to use
-pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn insert_obj<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let (child, parent) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     // println!( "inserting:{} into:{}", child, parent );
@@ -437,7 +418,6 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
     child_view.set_parent(parent);
 
     if parent != 0 {
-
         let parent_view = machine.get_object_view(parent);
         let old_child = parent_view.get_child();
 
@@ -448,9 +428,7 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
             let child_view = machine.get_object_view(child);
             child_view.set_sibling(old_child);
         }
-
     }
-
 }
 
 // je is the only jump expression which can take 4 arguments
@@ -458,8 +436,7 @@ pub fn insert_obj(code: &mut OpCode, machine: &mut ZMachine) {
 //
 // some aspects of the design are kind of confusing, im wondering
 // if this was more for the lexer
-pub fn je(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn je<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.branch = true;
 
     // god i love rust, watch this
@@ -483,15 +460,14 @@ pub fn je(code: &mut OpCode, machine: &mut ZMachine) {
     // println!( "{}",code );
 
     code.result = condition;
-
 }
 
 // this function jumps if greater than
-pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn jg<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     // casting between signed and unsigned values should be OK
     code.branch = true;
-    code.result = ((code.operands[0].get_value() as i16) >
-                   (code.operands[1].get_value() as i16)) as u16;
+    code.result =
+        ((code.operands[0].get_value() as i16) > (code.operands[1].get_value() as i16)) as u16;
 }
 
 // this function jumps if the object is a child of the other object,
@@ -503,8 +479,7 @@ pub fn jg(code: &mut OpCode, machine: &mut ZMachine) {
 // since that question would make no sense, unless the answer was also
 // "nothing", but that would just be like a jump( since its an unconditional
 // branch
-pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn jin<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.branch = true;
 
     let (child, parent) = (code.operands[0].get_value(), code.operands[1].get_value());
@@ -516,20 +491,18 @@ pub fn jin(code: &mut OpCode, machine: &mut ZMachine) {
     // println!("result is:{}", code.result );
 
     // done!
-
 }
 
 // this function jumps if less than
-pub fn jl(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn jl<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.branch = true;
-    code.result = ((code.operands[0].get_value() as i16) <
-                   (code.operands[1].get_value() as i16)) as u16;
+    code.result =
+        ((code.operands[0].get_value() as i16) < (code.operands[1].get_value() as i16)) as u16;
 }
 
 // another one of the few instructions that just modifies ip,
 // this time it does absolutely nothing to the call stack
-pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn jump<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     // we have to be careful about this cast or we will lose the negative value
     let offset = code.operands[0].get_value() as i16;
     let offset = offset as i32;
@@ -550,15 +523,12 @@ pub fn jump(code: &mut OpCode, machine: &mut ZMachine) {
     // reset read bytes so machine does not advance the code
     code.read_bytes = 0;
     // done
-
 }
 
-pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn jz<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.branch = true;
     code.result = (code.operands[0].get_value() == 0) as u16;
     // println!( "result of jz:{}", code.result );
-
 }
 
 // this was not the easiest one
@@ -573,7 +543,7 @@ pub fn jz(code: &mut OpCode, machine: &mut ZMachine) {
 // so instead of just returning the value, we always read the
 // variable and return it
 
-pub fn load(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn load<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
     let variable = code.operands[0].get_value();
     code.result = machine.read_variable(variable as u8);
@@ -583,8 +553,7 @@ pub fn load(code: &mut OpCode, machine: &mut ZMachine) {
 // can be used to load things outside the global variables table or stack
 // so again, we actually use the entire memory view here (just like storew)
 
-pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn loadw<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
 
     let (start, index) = (code.operands[0].get_value(), code.operands[1].get_value());
@@ -593,74 +562,67 @@ pub fn loadw(code: &mut OpCode, machine: &mut ZMachine) {
     //which means it has to be in the lower 64k
     let address = (start) + (index * 2);
 
-    code.result = machine.get_memory_view()
-        .read_u16_at(address as u32);
-
+    code.result = machine.get_memory_view().read_u16_at(address as u32);
 }
 
 // this operates on the entirety of static + dynamic memory
 
-pub fn loadb(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn loadb<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
 
     let (array, byte_index) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     let address = (array) + (byte_index);
 
-    code.result = machine.get_memory_view()
-        .read_at(address as u32) as u16;
+    code.result = machine.get_memory_view().read_at(address as u32) as u16;
     // done
-
 }
 
 // signed multiplication
-pub fn mul(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn mul<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.store = true;
-    code.result = ((code.operands[0].get_value() as i16) *
-                   (code.operands[1].get_value() as i16)) as u16;
+    code.result =
+        ((code.operands[0].get_value() as i16) * (code.operands[1].get_value() as i16)) as u16;
     // done
 }
 
 // signed modulo
-pub fn mod_fn(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn mod_fn<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.store = true;
-    code.result = ((code.operands[0].get_value() as i16) %
-                   (code.operands[1].get_value() as i16)) as u16;
+    code.result =
+        ((code.operands[0].get_value() as i16) % (code.operands[1].get_value() as i16)) as u16;
     // done
 }
 
-pub fn new_line(code: &mut OpCode, machine: &mut ZMachine) {
-    machine.print_to_main("\n");
+pub fn new_line<T: ZInterface>(_: &mut OpCode<T>, machine: &mut ZMachine<T>) {
+    machine.zinterface.as_ref().print_to_main("\n");
 }
 
 //uh... do nothing!
-pub fn nop(code: &mut OpCode, machine: &mut ZMachine) {}
+pub fn nop<T: ZInterface>(_: &mut OpCode<T>, _: &mut ZMachine<T>) {}
 
-pub fn or(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn or<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.store = true;
     code.result = code.operands[0].get_value() | code.operands[1].get_value();
     // done
 }
 
-pub fn output_stream(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn output_stream<T: ZInterface>(_: &mut OpCode<T>, _: &mut ZMachine<T>) {
     unimplemented!();
 }
 
-pub fn quit(code: &mut OpCode, machine: &mut ZMachine) {
-    machine.print_to_main("Quitting.");
+pub fn quit<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
+    machine.zinterface.print_to_main("Quitting.");
     machine.state = MachineState::Stopped;
     code.read_bytes = 0;
 }
 
-pub fn pop(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn pop<T: ZInterface>(_: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     machine.call_stack.stack.pop();
     //thats it
 }
 
-pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn print<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let view = machine.get_frame_view();
     let abbreviations_view = machine.get_abbreviations_view();
 
@@ -669,12 +631,10 @@ pub fn print(code: &mut OpCode, machine: &mut ZMachine) {
     code.read_bytes += string.encoded_length;
 
     // all print functions use print, instead of println
-    machine.print_to_main(&format!("{}", string));
-
+    machine.zinterface.print_to_main(&format!("{}", string));
 }
 
-pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn print_addr<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let addr = code.operands[0].get_value() as u32;
     // let packed_addr = (addr as u32) * 2;
 
@@ -683,24 +643,21 @@ pub fn print_addr(code: &mut OpCode, machine: &mut ZMachine) {
 
     let string = ZString::create(addr, &view, &abbreviations_view);
 
-    machine.print_to_main(&format!("{}",string));
-
+    machine.zinterface.print_to_main(&format!("{}", string));
 }
 
-pub fn print_char(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn print_char<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     // let ch = (code.operands[0].get_value());
     // let mut ch_str = String::with_capacity(1);
     //
     // this is similar to print_obj in that we do not println!
     match ZString::decode_zscii(code.operands[0].get_value()) {
-        Some(x) => machine.print_to_main(&char::to_string(&x)),
+        Some(x) => machine.zinterface.print_to_main(&char::to_string(&x)),
         None => {}
     }
-
 }
 
-pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn print_obj<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let object = code.operands[0].get_value();
 
     let view = machine.get_object_view(object).get_properties_table_view();
@@ -713,12 +670,10 @@ pub fn print_obj(code: &mut OpCode, machine: &mut ZMachine) {
     // objects can handle carriage returns themselves ( a ZString has a newline
     // character )
 
-    machine.print_to_main(&format!("{}", string));
-
+    machine.zinterface.print_to_main(&format!("{}", string));
 }
 
-pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn print_paddr<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let packed_addr = code.operands[0].get_value();
 
     // another thing that we will have to change in the future,
@@ -733,29 +688,30 @@ pub fn print_paddr(code: &mut OpCode, machine: &mut ZMachine) {
     let abbreviations_view = machine.get_abbreviations_view();
     let string = ZString::create(full_addr, &view, &abbreviations_view);
 
-    machine.print_to_main(&format!("{}", string));
-
+    machine.zinterface.print_to_main(&format!("{}", string));
 }
 
-pub fn print_num(code: &mut OpCode, machine: &mut ZMachine) {
-    let num = (code.operands[0].get_value());
-    machine.print_to_main(&format!("{}", num as i16));
+pub fn print_num<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
+    let num = code.operands[0].get_value();
+    machine.zinterface.print_to_main(&format!("{}", num as i16));
 }
 
 // there are a lot of "macro commands" in the z-instruction set,
 // probably to save on common tasks, such as this one,
 // frequently used when you succeed in doing something
 // print success message, new line, and return true)
-pub fn print_ret(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn print_ret<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     print(code, machine);
     new_line(code, machine);
     rtrue(code, machine);
 }
 
-pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
-
-    let (object, property, value) =
-        (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
+pub fn put_prop<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
+    let (object, property, value) = (
+        code.operands[0].get_value(),
+        code.operands[1].get_value(),
+        code.operands[2].get_value(),
+    );
 
     // println!("************************************************");
     // println!("WRITING object: {}", object);
@@ -768,15 +724,12 @@ pub fn put_prop(code: &mut OpCode, machine: &mut ZMachine) {
         //its virtually assured property is always a byte value
         //otherwise, its an inform compiler bug
         write_property(property as u8, value);
-
-
 }
 
 // weirdly enough, this is not a store call
 // i have no idea if its legal to pull and push
 // back onto the stack, but i don't see why not
-pub fn pull(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn pull<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let destination = code.operands[0].get_value();
     let value = machine.call_stack.stack.pop();
 
@@ -787,16 +740,14 @@ pub fn pull(code: &mut OpCode, machine: &mut ZMachine) {
 
     machine.store_variable(destination as u8, value);
     // done
-
 }
 
-pub fn push(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn push<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let value = code.operands[0].get_value();
     machine.call_stack.stack.push(value);
 }
 
-pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn random<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.store = true;
 
     let (range, seed) = match code.operands[0].get_value() as i16 {
@@ -806,7 +757,6 @@ pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
 
     //the function will only seed or return a random number, not both
     if let Some(seed_value) = seed {
-
         //If range is negative, the random number generator is seeded to that value and the return
         //value is 0. Most interpreters consider giving 0 as range illegal (because they attempt a
         //division with remainder by the range), but correct behaviour is to reseed the generator
@@ -814,51 +764,42 @@ pub fn random(code: &mut OpCode, machine: &mut ZMachine) {
 
         //in our case, we will just ask thread_rng() regarding 0, but random number
         //generator will handle it
-        
         machine.random_generator.seed(seed_value as u16);
         code.result = 0;
         return;
-
     };
 
     if let Some(range_value) = range {
-
         //If range is positive, returns a uniformly random number between 1 and range.
-        
         let random = machine.random_generator.next(range_value as u16);
         code.result = random;
         return;
-
     };
-
 }
 
-pub fn remove_obj(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn remove_obj<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let obj = code.operands[0].get_value();
     let mut view = machine.get_object_view(obj);
     unparent_object(&mut view, machine);
-
 }
 
-pub fn restore(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn restore<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     //. we are pretending it failed.
     code.branch = true;
     code.result = 0;
 
     let string = "Restore not supported. Nice try. ";
 
-    machine.print_to_main(&format!("{}", string));
+    machine.zinterface.print_to_main(&format!("{}", string));
 }
 
-pub fn restart(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn restart<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     machine.state = MachineState::Restarting;
     code.read_bytes = 0;
 }
 
 // ret
-pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn ret<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     // return takes one operand, which is the address to return
     let value = code.operands[0].get_value();
     code.result = value;
@@ -903,7 +844,6 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
     // println!("returning to:{:x} in ret ********", address + offset);
 
     // we are done, machine handles store calls
-
 }
 
 // pop the stack and return that value,
@@ -911,21 +851,21 @@ pub fn ret(code: &mut OpCode, machine: &mut ZMachine) {
 // the next three fucntions are all 0-op,
 // so we don't have to worry too much about modifying operands
 // to use ret ( 1-OP )
-pub fn ret_popped(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn ret_popped<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let value = machine.read_variable(0);
     code.operands[0] = Operand::LargeConstant { value: value };
     ret(code, machine);
 }
 
 // return the value false
-pub fn rfalse(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn rfalse<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     // similar to rtrue
     code.operands[0] = Operand::SmallConstant { value: 0 };
     ret(code, machine);
 }
 
 // return the value true
-pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn rtrue<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     // so here we do some fudging, because we want to re-use ret
     // the alternative is to create an abstraction that "handled" returning, but
     // that seems like almost everything that ret does
@@ -933,33 +873,31 @@ pub fn rtrue(code: &mut OpCode, machine: &mut ZMachine) {
     ret(code, machine);
 }
 
-pub fn save(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn save<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     //. we are pretending it succeeded.
     code.branch = true;
     code.result = 1;
 
     let string = "Save not supported. Maybe next time. ";
 
-    machine.print_to_main(&format!("{}", string));
+    machine.zinterface.print_to_main(&format!("{}", string));
 }
 
 // this sets a bit in the attributes table
-pub fn set_attr(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn set_attr<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     // println!("{}",code);
-    let (object, attr) = (code.operands[0].get_value(), 
-                          code.operands[1].get_value());
+    let (object, attr) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     machine.get_object_view(object).set_attribute(attr);
 
     // done
 }
 
-pub fn set_window(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn set_window<T: ZInterface>(_: &mut OpCode<T>, _: &mut ZMachine<T>) {
     unimplemented!();
 }
 
-pub fn sound_effect(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn sound_effect<T: ZInterface>(_: &mut OpCode<T>, _: &mut ZMachine<T>) {
     unimplemented!();
 }
 
@@ -971,65 +909,81 @@ pub fn sound_effect(code: &mut OpCode, machine: &mut ZMachine) {
 // The below code will only appear in version 3, but it will be used by read regardless
 // in 1-3.
 //
-// (In Version 3 only.) Display and update the status line now (don't wait until 
-// the next keyboard input).(In theory this opcode is illegal in later Versions 
-// but an interpreter should treat it as nop, because Version 5 Release 23 of 
+// (In Version 3 only.) Display and update the status line now (don't wait until
+// the next keyboard input).(In theory this opcode is illegal in later Versions
+// but an interpreter should treat it as nop, because Version 5 Release 23 of
 // 'Wishbringer' contains this opcode by accident.)
 
 // In Versions 1 to 3, a status line should be printed by the interpreter, as follows. In Version
 // 3, it must set bit 4 of 'Flags 1' in the header if it is unable to produce a status line.
 //
-pub fn show_status(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn show_status<T: ZInterface>(_: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     // The short name of the object whose number is in the first global variable should be printed
     // on the left hand side of the line.
-    
-    //we can match against version 3 by also matching against the header flags, which 
+
+    //we can match against version 3 by also matching against the header flags, which
     //will let us unwrap some necessary info
 
-    let (left, right) = if let &HeaderFlags::V1{ flags: HeaderFlagsV1{ ref status_line, .. } } = &machine.header.flags {
-
+    let (left, right) = if let &HeaderFlags::V1 {
+        flags: HeaderFlagsV1 {
+            ref status_line, ..
+        },
+    } = &machine.header.flags
+    {
         let globals = machine.get_global_variables_view();
 
         let score_object = globals.read_global(0);
         let first_param = globals.read_global(1);
         let second_param = globals.read_global(2);
 
-        let view = machine.get_object_view(score_object).get_properties_table_view();
+        let view = machine
+            .get_object_view(score_object)
+            .get_properties_table_view();
         // the string is offset by one because properties starts with the size byte,
         // then is followed by the short name of the object
         let score_name = ZString::create(1, &view.view, &machine.get_abbreviations_view());
 
-        let out = match (status_line, first_param > 12 ) {
-            (&StatusLineType::Hours, false) => format!( "Time: {}:{} AM", first_param, second_param ),
-            (&StatusLineType::Hours, true) => format!( "Time: {}:{} PM", first_param, second_param ),
-            (&StatusLineType::Score, _) => format!( "Score: {} Turns: {}", first_param, second_param ),
+        let out = match (status_line, first_param > 12) {
+            (&StatusLineType::Hours, false) => format!("Time: {}:{} AM", first_param, second_param),
+            (&StatusLineType::Hours, true) => format!("Time: {}:{} PM", first_param, second_param),
+            (&StatusLineType::Score, _) => {
+                format!("Score: {} Turns: {}", first_param, second_param)
+            }
         };
 
-        (Some(format!("{}",score_name)), Some(out))
-
+        (Some(format!("{}", score_name)), Some(out))
     } else {
         (None, None)
     };
 
     match (left, right) {
-        (Some(l), Some(r)) => machine.print_to_header( &l, &r ),
-        _ => ()
+        (Some(l), Some(r)) => machine.zinterface.print_to_header(&l, &r),
+        _ => (),
     }
-
-    
 }
 
-pub fn split_window(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn split_window<T: ZInterface>(_: &mut OpCode<T>, _: &mut ZMachine<T>) {
     unimplemented!();
 }
 
-pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
-
-    //println!( "getting input" );
-
+pub fn sread<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     show_status(code, machine);
-    io::stdout().flush();
+
+    // we might want to change where this is in the future, it seems like
+    // we might not want to rely on an opcode to flush the output -
+    // this isn't necessary behavior for the ZMachine according to the standards
+    // document; the only opcode that flushes is set_colour which isn't available
+    // until version 5 (thats because it dumps the previous color before changing the palette
+    // which was required for more primitive systems)
+
+    // another thing to keep in mind is that this really only has an impact on
+    // the CLI version, io::stdout has an implementation in WASM (it's the console),
+    // but since we don't use it in the WASM version, nothing is flushed
+
+    match io::stdout().flush() {
+        Err(_) => panic!("could not flush the output!"),
+        Ok(_) => (),
+    };
 
     let (text_buffer, parse_buffer) = (code.operands[0].get_value(), code.operands[1].get_value());
 
@@ -1049,11 +1003,9 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
     let view = machine.get_memory_view();
     let dictionary_view = machine.get_dictionary_view();
-    let abbreviations_view = machine.get_abbreviations_view();
     let version = machine.header.version;
 
     let process_input = Rc::new(move |input: String| {
-
         // text and parse are addresses that indicate where
         // the text should be filled with the text input
 
@@ -1067,7 +1019,6 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
         let mut cursor = text_buffer as u32;
         let max_length = view.read_at(cursor);
-        
         // we also don't write over the max length,
         // i believe that stays the same all game
 
@@ -1099,11 +1050,11 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 
         // we pass version so the word can be correctly encoded
         sread_write_to_parse_buffer(&view, &words, &dictionary_view, parse_buffer, version);
-
     });
 
-    machine.state = MachineState::TakingInput { callback: process_input }
-
+    machine.state = MachineState::TakingInput {
+        callback: process_input,
+    }
 }
 
 // private helper function for sread, takes a cleaned, split input
@@ -1111,16 +1062,15 @@ pub fn sread(code: &mut OpCode, machine: &mut ZMachine) {
 // and returns a Vec of words in a list ( for use in the next step )
 //
 // this function takes ownership of split ( and technically text buffer, but thats Copy )
-fn sread_write_to_text_buffer(view: &MemoryView,
-                              mut split: SplitWhitespace,
-                              mut text_buffer: u32)
-                              -> Vec<String> {
-
+fn sread_write_to_text_buffer(
+    view: &MemoryView,
+    mut split: SplitWhitespace,
+    mut text_buffer: u32,
+) -> Vec<String> {
     // 8 words is probably a reasonable upper bound
     let mut words = Vec::with_capacity(8);
 
     while let Some(word) = split.next() {
-
         for ch in word.chars() {
             view.write_at(text_buffer, ch as u8);
             text_buffer += 1;
@@ -1130,11 +1080,9 @@ fn sread_write_to_text_buffer(view: &MemoryView,
         text_buffer += 1;
 
         words.push(String::from(word));
-
     }
 
     words
-
 }
 
 // private helper function for sread, takes a vec of words, looks them up in the dictionary,
@@ -1143,12 +1091,13 @@ fn sread_write_to_text_buffer(view: &MemoryView,
 // 1) address in dictionary in first two bytes( 0 if nothing ),
 // 2) # of characters in second byte
 // 3) position in string of first letter of the word
-fn sread_write_to_parse_buffer(view: &MemoryView,
-                               words: &Vec<String>,
-                               dictionary_view: &MemoryView,
-                               parse_buffer: u16,
-                               version: u8) {
-
+fn sread_write_to_parse_buffer(
+    view: &MemoryView,
+    words: &Vec<String>,
+    dictionary_view: &MemoryView,
+    parse_buffer: u16,
+    version: u8,
+) {
     let mut cursor = parse_buffer as u32;
 
     // whats the max # of parsed tokens?
@@ -1163,7 +1112,6 @@ fn sread_write_to_parse_buffer(view: &MemoryView,
 
     // write the word(token) count in the first byte of the parse buffer
     view.write_at(cursor, token_count as u8);
-
 
     // we write to this
     cursor += 1;
@@ -1204,7 +1152,6 @@ fn sread_write_to_parse_buffer(view: &MemoryView,
 // private helper function for sread, finds words in the dictionary
 // i believe this is the only op - or part of the code - that uses it
 fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Option<u32> {
-
     // so interestingly enough, the dictionary starts with a # and a list of
     // codes which correspond to keyboard input.
     let num_input_codes = dictionary.read_at_head(0) as u32;
@@ -1232,13 +1179,12 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
     let mut address = None;
     let mut lower = 0;
     let mut upper = dictionary_entries - 1;
-    let mut pointer = 0;
+    let mut pointer;
 
     while lower <= upper {
-
         pointer = lower + (upper - lower) / 2;
         let offset = dictionary_header_offset + pointer * entry_length;
-        let mut found: bool = false;
+        let found: bool;
 
         // we need to both pull the encoded value out of the enum,
         // and the entry from the table itself, because if there
@@ -1248,21 +1194,20 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
         // note that in the future these will probably need to be vecs,
         // because the match arms wont match types when v4 is implemented
 
-        let (mut encoded_string, mut dictionary_entry) = match string {
-
+        let (encoded_string, dictionary_entry) = match string {
             // we can "move" encoded out of zword here, because it has the copy trait
             // as an array of u8s
             &ZWord::V3 { encoded, .. } => {
-
-                let encoded_entry = [dictionary.read_at_head(offset),
-                                     dictionary.read_at_head(offset + 1),
-                                     dictionary.read_at_head(offset + 2),
-                                     dictionary.read_at_head(offset + 3)];
+                let encoded_entry = [
+                    dictionary.read_at_head(offset),
+                    dictionary.read_at_head(offset + 1),
+                    dictionary.read_at_head(offset + 2),
+                    dictionary.read_at_head(offset + 3),
+                ];
 
                 found = encoded_entry == encoded;
 
                 (encoded, encoded_entry)
-
             }
             // v4 not implemented yet
             _ => unimplemented!(),
@@ -1285,7 +1230,6 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
         let encode_map = [encoded_string, dictionary_entry]
             .into_iter()
             .map(|container| {
-
                 let mut total: u64 = 0;
 
                 for (i, value) in container.iter().enumerate() {
@@ -1300,7 +1244,7 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
             })
             .collect::<Vec<u64>>();
 
-        let (mut encoded, mut encoded_entry) = (encode_map[0], encode_map[1]);
+        let (encoded, encoded_entry) = (encode_map[0], encode_map[1]);
 
         // the ordering of the table corresponds to dictionary ordering,
         // and is sorted
@@ -1310,60 +1254,58 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
         } else {
             lower = pointer + 1;
         }
-
     }
 
     address
-
 }
 
 // stores that aren't stores trip me up, honestly
-pub fn store(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn store<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     let (variable, value) = (code.operands[0].get_value(), code.operands[1].get_value());
     machine.store_variable(variable as u8, value);
     // done
-
 }
 
 // this only operates on dynamic and static memory
-pub fn storeb(code: &mut OpCode, machine: &mut ZMachine) {
-
-
-    let (start, index, value) =
-        (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
+pub fn storeb<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
+    let (start, index, value) = (
+        code.operands[0].get_value(),
+        code.operands[1].get_value(),
+        code.operands[2].get_value(),
+    );
 
     let address = start + index;
 
-    machine.get_memory_view()
+    machine
+        .get_memory_view()
         .write_at(address as u32, value as u8);
-
 }
 
 // this only operates on dynamic and static memory
-pub fn storew(code: &mut OpCode, machine: &mut ZMachine) {
-
-    let (start, index, value) =
-        (code.operands[0].get_value(), code.operands[1].get_value(), code.operands[2].get_value());
+pub fn storew<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
+    let (start, index, value) = (
+        code.operands[0].get_value(),
+        code.operands[1].get_value(),
+        code.operands[2].get_value(),
+    );
 
     let address = start + (index * 2);
-    machine.get_memory_view()
+    machine
+        .get_memory_view()
         .write_u16_at(address as u32, value);
 
     // thats all we wrote, its strange store calls don't
     // actually follow the "store" mechanism, but there
     // must have been an design reason
-
 }
 
-pub fn sub(code: &mut OpCode, machine: &mut ZMachine) {
+pub fn sub<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.store = true;
-    code.result = ((code.operands[0].get_value() as i16) -
-                   (code.operands[1].get_value() as i16)) as u16;
+    code.result =
+        ((code.operands[0].get_value() as i16) - (code.operands[1].get_value() as i16)) as u16;
 }
 
-pub fn test(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn test<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.branch = true;
 
     let (mask, flags) = (code.operands[0].get_value(), code.operands[1].get_value());
@@ -1371,25 +1313,20 @@ pub fn test(code: &mut OpCode, machine: &mut ZMachine) {
     code.result = (mask & flags == flags) as u16;
 }
 
-pub fn test_attr(code: &mut OpCode, machine: &mut ZMachine) {
-
+pub fn test_attr<T: ZInterface>(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {
     code.branch = true;
 
-    let (object, attribute) = (code.operands[0].get_value(), 
-                               code.operands[1].get_value());
+    let (object, attribute) = (code.operands[0].get_value(), code.operands[1].get_value());
 
     // println!( "object:{}", object);
     // println!( "attribute:{}", attribute);
 
-    code.result = machine.get_object_view(object)
-        .has_attribute(attribute) as u16;
+    code.result = machine.get_object_view(object).has_attribute(attribute) as u16;
 
     // println!( "result:{}", code.result);
-
 }
 
-fn unparent_object( obj_view: &mut ObjectView, machine: &mut ZMachine ) {
-
+fn unparent_object<T: ZInterface>(obj_view: &mut ObjectView, machine: &mut ZMachine<T>) {
     let current_parent = obj_view.get_parent();
 
     if current_parent == 0 {
@@ -1402,24 +1339,23 @@ fn unparent_object( obj_view: &mut ObjectView, machine: &mut ZMachine ) {
     let mut current_child = parent_view.get_child();
 
     if current_child == 0 {
-        panic!("object tree badly formed - object marked as having a parent that \
-                does not have any children!");
+        panic!(
+            "object tree badly formed - object marked as having a parent that \
+             does not have any children!"
+        );
     }
 
     // i would try to generalize the logic, but as it turns out, you do completely
     // different things
     if current_child == obj_view.object_id {
-
         // 1) if first child, set parent's new first child to child's sibling
         parent_view.set_child(obj_view.get_sibling());
-
     } else {
         // 2), if not first childk, progress through children until child is found, then
         // set previous child to child's sibling
-        let mut last_child = current_child;
+        let mut last_child;
 
         loop {
-
             last_child = current_child;
             current_child = machine.get_object_view(current_child).get_sibling();
 
@@ -1428,33 +1364,33 @@ fn unparent_object( obj_view: &mut ObjectView, machine: &mut ZMachine ) {
             }
 
             if current_child == 0 {
-                panic!("object tree badly formed - object marked as having a parent it \
-                        does not");
+                panic!(
+                    "object tree badly formed - object marked as having a parent it \
+                     does not"
+                );
             }
-
         }
 
         let new_sibling = obj_view.get_sibling();
         machine.get_object_view(last_child).set_sibling(new_sibling);
-
     }
-
 }
 
-//checksum always passes, for now
+// Checksum always passes, for now
 //
-//this was used for piracy and fidelity reasons;
-//these days? not sure what it could really be used for
-//i don't know of any games that actually use it for a game purpose
+// This was used for piracy and fidelity reasons;
+// but these days? I'm not sure what the benefit of implementing it would be.
+
+// I don't know of any games that actually use it for a game purpose,
+// and modified story files are so common these days - with different checksums -
+// that there's no real "verifying" an original - whats the point, if a user wants to play
+// it, let them.
 //
-//it would literally have to be a programming game or something, that
-//involved creating a checksum
-//
-//so, we aren't going to bother here. if the story file is tampered with
-//whatever, if it is tampered to the point of breaking, its going to crash
-//anyway
-pub fn verify(code: &mut OpCode, machine: &mut ZMachine) {
+// So, we aren't going to bother here. if the story file is tampered with
+// whatever, if it is tampered to the point of breaking, its going to crash
+// anyway.
+
+pub fn verify<T: ZInterface>(code: &mut OpCode<T>, _: &mut ZMachine<T>) {
     code.branch = true;
     code.result = 1;
 }
-

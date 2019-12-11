@@ -8,8 +8,10 @@ target/*
 
 log/*
 
+Session.vim
 config.ru
 .sass-cache/
 source/
+node_modules/
 *.rb
 Gemfile*

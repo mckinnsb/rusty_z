@@ -1,46 +1,17 @@
-pub mod opcode;
-pub mod instruction_set;
-pub mod input_handler;
-
 extern crate rand;
 use self::rand::*;
-use std::time::SystemTime;
 
-#[cfg(not(target_os="emscripten"))]
-extern crate termion;
-#[cfg(not(target_os="emscripten"))]
-use self::termion::{clear, color, cursor, style};
-
-#[cfg(target_os="emscripten")]
-extern crate webplatform;
-#[cfg(target_os="emscripten")]
-use self::webplatform::*;
-
-use self::opcode::*;
-use self::input_handler::*;
+use super::super::interfaces::zinterface::*;
+use super::opcode::*;
 
 // represents the current zmachine
+use super::global_variables_view::*;
 use super::header::*;
 use super::memory_view::*;
-use super::global_variables_view::*;
 use super::object_view::*;
 
 use std::cell::*;
-use std::io::*;
 use std::rc::*;
-
-#[cfg(target_os="emscripten")]
-pub struct ElementCache<'a> {
-    score: HtmlNode<'a>,
-    window: HtmlNode<'a>,
-}
-
-//again: evil. evil evil evil
-//i have no intent to use this type
-#[cfg(not(target_os="emscripten"))]
-pub struct ElementCache<'a> {
-    refer: Ref<'a, String>,
-}
 
 // once this is a FnMut or FnOnce, I don't think we
 // can clone it anymore.
@@ -50,7 +21,7 @@ pub enum MachineState {
     Restarting,
     Running,
     // input finished takes ownership of the string
-    TakingInput { callback: Rc<Fn(String)> },
+    TakingInput { callback: Rc<dyn Fn(String)> },
 }
 
 pub struct RandomGen<T> {
@@ -61,9 +32,7 @@ pub struct RandomGen<T> {
 }
 
 impl<T: rand::SeedableRng<[u32; 4]>> RandomGen<T> {
-
     pub fn seed(&mut self, value: u16) {
-
         self.random_seed = value;
 
         //if seed < 1000, we set the generator into predictable mode,
@@ -74,33 +43,29 @@ impl<T: rand::SeedableRng<[u32; 4]>> RandomGen<T> {
             self.randoms_predictable_next = 1;
         } else {
             let seed = match value {
-
                 // if s is 0, all future random numbers will be "really random"
                 // so we just generate a random number generator at random
-                0 => {
-                    [rand::thread_rng().gen::<u32>(),
-                     rand::thread_rng().gen::<u32>(),
-                     rand::thread_rng().gen::<u32>(),
-                     rand::thread_rng().gen::<u32>()]
-                }
+                0 => [
+                    rand::thread_rng().gen::<u32>(),
+                    rand::thread_rng().gen::<u32>(),
+                    rand::thread_rng().gen::<u32>(),
+                    rand::thread_rng().gen::<u32>(),
+                ],
                 _ => {
                     //else, use the seed to make a random number generator,
                     //such that the same seed will generate the same #s every time
                     let val = value as u32;
                     //overflow is fine
-                    [val, val+1, val+2, val+3]
+                    [val, val + 1, val + 2, val + 3]
                 }
             };
 
             self.generator = T::from_seed(seed);
         }
-
     }
 
     pub fn next(&mut self, range: u16) -> u16 {
-
         if self.randoms_predictable {
-
             self.randoms_predictable_next += 1;
 
             if self.randoms_predictable_next > range {
@@ -108,7 +73,6 @@ impl<T: rand::SeedableRng<[u32; 4]>> RandomGen<T> {
             }
 
             self.randoms_predictable_next
-
         } else {
             //bits will be lost, but its random
             //note that zmachine is actually inclusive in its range,
@@ -116,7 +80,6 @@ impl<T: rand::SeedableRng<[u32; 4]>> RandomGen<T> {
 
             self.generator.gen_range(1, range + 1)
         }
-
     }
 }
 
@@ -138,7 +101,6 @@ impl Stack {
     // to offset by index because of where top_of_frame is, but as it turns
     // out, starting out with "1" prevents that
     pub fn get_local_variable(&self, num: u8) -> u16 {
-
         // here we will cast because i do want some restrictions
         // around get local variable
         let offset = num as usize;
@@ -148,7 +110,6 @@ impl Stack {
         // println!("getting index: {}", index);
 
         self.stack[index as usize]
-
     }
 
     pub fn store_local_variable(&mut self, num: u8, value: u16) {
@@ -158,7 +119,6 @@ impl Stack {
     }
 
     pub fn switch_to_new_frame(&mut self) {
-
         // the stack will never exceed 64,000 entries - i believe
         // the recommended # given by infocom is somewhere in the hundreds
         // the total stack size wont exceed 1024 entries,
@@ -166,11 +126,9 @@ impl Stack {
         self.stack.push(self.top_of_frame as u16);
         // println!("just pushed top of frame:{}", self.top_of_frame);
         self.top_of_frame = self.top_of_stack();
-
     }
 
     pub fn restore_last_frame(&mut self) {
-
         // dump everything after the top of the frame
         self.stack.truncate(self.top_of_frame + 1);
 
@@ -188,7 +146,7 @@ impl Stack {
     }
 }
 
-pub struct ZMachine<'a> {
+pub struct ZMachine<T: ZInterface> {
     // the call stack, which are 2-byte words (u16)
     //
     // this also mixes in the local stack,
@@ -205,15 +163,13 @@ pub struct ZMachine<'a> {
     // and mirrors "actual" stack frames.
     pub call_stack: Stack,
 
-    // document
-    document: Document<'a>,
-
-    element_cache: Option<ElementCache<'a>>,
-
     // the header, which actually reads the first 64 bytes in memory
     // everyone has access to it, its mostly configuration stuff
     // and version info
     pub header: Header,
+
+    // the interface to the GUI, so ZMachine can print/take input
+    pub zinterface: Rc<T>,
 
     // ALL of the memory, this represents the entire state of the machine
     // this is loaded in at first , then modified by save files, then
@@ -231,13 +187,13 @@ pub struct ZMachine<'a> {
     //
     // the machine owns a reference to the memory, and typically
     // is the only person who asks for a mutable reference
-    memory: Rc<RefCell<Vec<u8>>>,
+    pub memory: Rc<RefCell<Vec<u8>>>,
 
     // the stack pointer/program counter, technically this can be 0-512k,
     // closest representation is u32
     //
     // note that this is one of the very few 'u32' things here
-    ip: u32,
+    pub ip: u32,
 
     //we use XorShiftRng because there are no real security concerns here
     pub random_generator: RandomGen<XorShiftRng>,
@@ -246,10 +202,9 @@ pub struct ZMachine<'a> {
     pub state: MachineState,
 }
 
-impl<'a> ZMachine<'a> {
+impl<T: ZInterface> ZMachine<T> {
     //creates a new zmachine from the data given
-    pub fn new(data: Vec<u8>) -> ZMachine<'a> {
-
+    pub fn new(data: Vec<u8>, interface: T) -> ZMachine<T> {
         // we have to create an immutably reference
         // counted mutable reference in order to
         //
@@ -284,22 +239,24 @@ impl<'a> ZMachine<'a> {
         // note that pc_start is a u16, but our pointer is a u32. this is because
 
         let pc_start = header.pc_start as u32;
+        let interface = Rc::new(interface);
 
-        let mut machine = ZMachine {
+        let machine = ZMachine::<T> {
             call_stack: Stack {
                 top_of_frame: 0,
                 stack: Vec::new(),
             },
-            document: ZMachine::get_document(),
-            element_cache: None,
             header: header,
             ip: pc_start,
             memory: memory,
+            zinterface: interface,
             random_generator: RandomGen {
-                generator: XorShiftRng::from_seed([rand::thread_rng().gen::<u32>(),
-                                                   rand::thread_rng().gen::<u32>(),
-                                                   rand::thread_rng().gen::<u32>(),
-                                                   rand::thread_rng().gen::<u32>()]),
+                generator: XorShiftRng::from_seed([
+                    rand::thread_rng().gen::<u32>(),
+                    rand::thread_rng().gen::<u32>(),
+                    rand::thread_rng().gen::<u32>(),
+                    rand::thread_rng().gen::<u32>(),
+                ]),
                 random_seed: 1,
                 randoms_predictable: false,
                 randoms_predictable_next: 1,
@@ -308,28 +265,16 @@ impl<'a> ZMachine<'a> {
         };
 
         //does nothing in desktop
-        machine.pull_elements();
-
         machine
-
     }
-
-    #[cfg(not(target_os="emscripten"))]
-    pub fn clear(&self) {
-        println!("{}", clear::All);
-    }
-
-    #[cfg(target_os="emscripten")]
-    pub fn clear(&self) {}
 
     //anyone can read this, just not mut/set it
-    pub fn current_ip (&self) -> u32 {
+    pub fn current_ip(&self) -> u32 {
         self.ip
     }
 
     //actually executes the instruction
-    fn execute_instruction(&mut self, op_code: &mut OpCode) {
-
+    fn execute_instruction(&mut self, op_code: &mut OpCode<T>) {
         op_code.execute(self);
 
         // technically, store and branch cannot happen at the same time
@@ -361,16 +306,6 @@ impl<'a> ZMachine<'a> {
                 self.ip += op_code.read_bytes;
             }
         }
-    }
-
-    #[cfg(target_os="emscripten")]
-    fn get_document() -> Document<'a> {
-        webplatform::init()
-    }
-
-    #[cfg(not(target_os="emscripten"))]
-    fn get_document() -> Document<'a> {
-        Document{ refer: None }
     }
 
     pub fn get_version(&self) -> u8 {
@@ -438,7 +373,6 @@ impl<'a> ZMachine<'a> {
     // to 65k objects. id rather standardize that ahead of time because
     // it will be all over the instruction set
     pub fn get_object_view(&self, object_id: u16) -> ObjectView {
-
         // we will have to change the values for this in the future when we support
         // newer versions of the ZMachine ( particularly version 4 )
 
@@ -450,7 +384,7 @@ impl<'a> ZMachine<'a> {
         // calculate offset and object location
         // println!( "object id: {}", object_id );
 
-        let offset = ((object_id as u32 - 1) * object_length);
+        let offset = (object_id as u32 - 1) * object_length;
 
         let object_location =
             self.header.object_table_location as u32 + property_defaults_length as u32 + offset;
@@ -475,12 +409,10 @@ impl<'a> ZMachine<'a> {
             // 3 relatives, 1 byte each
             related_obj_length: 1,
         }
-
     }
 
     // handle a branch opcode - this happens after instructions are executed
-    pub fn handle_branch(&mut self, op_code: &mut OpCode) {
-
+    pub fn handle_branch(&mut self, op_code: &mut OpCode<T>) {
         let view = self.get_frame_view();
         let condition = op_code.result;
         let true_mask = 0b10000000;
@@ -500,21 +432,21 @@ impl<'a> ZMachine<'a> {
             false => 2,
         };
 
-        if (branch) {
-
-
+        if branch {
             let offset: (bool, i16) = match one_bit {
                 // we have to mask against the control bits, here
                 //
                 true => {
                     // this should still be a positive # since we do not prop the bytes
                     // it can be from 0 to 63
-                    (true, (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16)
+                    (
+                        true,
+                        (view.read_at_head(op_code.read_bytes) & 0b00111111) as i16,
+                    )
                 }
                 false => {
-
-                    let mut fourteen_bit = view.read_u16_at_head(op_code.read_bytes) &
-                                           0b0011111111111111;
+                    let mut fourteen_bit =
+                        view.read_u16_at_head(op_code.read_bytes) & 0b0011111111111111;
 
                     //println!( "fourteen bit is:{:b}", fourteen_bit );
 
@@ -528,13 +460,10 @@ impl<'a> ZMachine<'a> {
                     //println!( "converted fourteen bit is:{}", fourteen_bit as i16 ){
 
                     (false, fourteen_bit as i16)
-
                 }
             };
 
-
             match offset {
-
                 // the below only applies when the branch form is one byte - i mistakenly
                 // assumed that 0 or 1 would be encoded as two bytes, which, in retrospect,
                 // does not make much sense ( although im not sure why it wouldn't be allowed -
@@ -568,34 +497,27 @@ impl<'a> ZMachine<'a> {
                 // not entirely sure why they felt the -2 was necessary?
                 // maybe it makes sense in inform syntax
                 (_, x) => {
-
                     //println!("read at:{:x}", view.pointer + op_code.read_bytes);
                     //println!("diff was:{}", x){
 
-                    let difference = (op_code.read_bytes as i16) + x + (branch_byte_offset as i16) -
-                                     2;
+                    let difference =
+                        (op_code.read_bytes as i16) + x + (branch_byte_offset as i16) - 2;
 
                     self.ip = ((self.ip as i32) + (difference as i32)) as u32;
 
                     //println!("branching to :{:x}", self.ip);
-
                 }
-
             }
-
         } else {
-
             let difference = op_code.read_bytes + branch_byte_offset;
             self.ip += difference;
 
             //print!("branch failed, moving to : ");
-
         }
     }
 
     //grabs the next instruction and executes it
     pub fn next_instruction(&mut self) {
-
         // a non-mutable memory view,
         // reads from the same memory as zmachine
         let view = self.get_frame_view();
@@ -627,114 +549,10 @@ impl<'a> ZMachine<'a> {
 
             // have the view.
             op_code.read_variables(view, globals, stack);
-
-            // print the opcode after resolution 
-            ZMachine::print_op(&op_code);
         }
 
-        //println!("{:x}", op_code.ip);
-
         self.execute_instruction(&mut op_code);
-
     }
-
-    #[cfg(target_os="emscripten")]
-    pub fn print_op( op_code: &OpCode ) {
-    }
-
-    #[cfg(not(target_os="emscripten"))]
-    pub fn print_op( op_code: &OpCode ) {
-    }
-
-    //print to main section , js
-    #[cfg(target_os="emscripten")]
-    pub fn print_to_main(&mut self, string: &str) {
-
-        //this is hardcoded, because, i can't bear to put anything more
-        //on zmachine. not today.
-        //
-        //also if this isn't found - go ahead and panic
-        //
-        //you know, i was always REALLY curious why the newline character doesn't
-        //actually create a new line in the browser display. it clearly does
-        //in the HTML output - you can see the demarcations.
-
-        let new_string = string.replace("\n", "<br/>");
-        self.element_cache.as_mut().unwrap().window.html_append(&new_string);
-
-    }
-
-    //print to header , js
-    #[cfg(target_os="emscripten")]
-    pub fn print_to_header(&mut self, left_side: &str, right_side: &str) {
-
-        let left = format!("<div style='float:left;'>{}</div>", left_side);
-        let right = format!("<div style='float:right;'>{}</div>", right_side);
-        let combined = format!("{}{}", left, right);
-
-        //this is hardcoded, because, i can't bear to put anything more
-        //on zmachine. not today.
-        self.element_cache.as_mut().unwrap().score.html_set(&combined);
-
-    }
-
-    //print to main section, desktop
-    #[cfg(not(target_os="emscripten"))]
-    pub fn print_to_main(&self, string: &str) {
-        print!("{}", string);
-    }
-
-    //print to header( usually, status line ), desktop
-    //
-    //not sure if these arguments are the best right now,
-    //also, pretty sure this is only used by version 3 - in version
-    //4 + i think this is a sep. window, desktop
-    #[cfg(not(target_os="emscripten"))]
-    pub fn print_to_header(&self, left_side: &str, right_side: &str) {
-
-        //terminals start at 1,1 so, keep that in mind
-        //this could panic... but if it can't get the terminal size,
-        //there's a good reason to
-        let (x, y) = termion::terminal_size().unwrap();
-
-        let top_left = cursor::Goto(1, 1);
-        //padding is 4 chars
-        let margin_padding = "    ";
-        let center_size = (x as usize) - left_side.len() - right_side.len() - 4 * 2;
-        let center_padding: String = (0..center_size).into_iter().map(|_| " ").collect();
-        let offset_position = x - (right_side.len() as u16) - 4;
-        let bottom = cursor::Goto(2, y);
-
-        let header = format!("{}{}{}{}{}{}{}{}{}{}{}{}",
-                             cursor::Goto(1, 1),
-                             color::Bg(color::LightWhite),
-                             color::Fg(color::Black),
-                             clear::CurrentLine,
-                             top_left,
-                             margin_padding,
-                             left_side,
-                             center_padding,
-                             right_side,
-                             margin_padding,
-                             style::Reset,
-                             bottom);
-
-        print!("{}", header);
-
-    }
-
-    //print to main section, desktop
-    #[cfg(target_os="emscripten")]
-    pub fn pull_elements(&mut self) {
-        self.element_cache = Some( ElementCache{
-            score: self.document.element_query("#header").unwrap(),
-            window: self.document.element_query("#content").unwrap(),
-        } );
-    }
-
-    //print to main section, desktop
-    #[cfg(not(target_os="emscripten"))]
-    pub fn pull_elements(&mut self) { }
 
     // this JUST reads a variable, but does not modify the stack in any way
     // its different from the opcode functions, which we may merge into zmachine,
@@ -747,7 +565,7 @@ impl<'a> ZMachine<'a> {
             // so it turns out that the stack does "pop" the value
             // in most z-machine interpreters, but what is different is
             // that the value is not deleted - it remains in the array
-            
+
             // its possible some programs used "compiler wizardry"
             // to optimize some things to access data that was already "popped"
 
@@ -758,29 +576,41 @@ impl<'a> ZMachine<'a> {
             // 0, its the stack, pop it and return
             0 => match self.call_stack.stack.pop() {
                 Some(value) => value,
-                None => panic!("stack underflow!")
+                None => panic!("stack underflow!"),
             },
             // 1 to 15, its a local
-            i @ 0x01...0x0f => self.call_stack.get_local_variable(i),
+            i @ 0x01..=0x0f => self.call_stack.get_local_variable(i),
             // 16 to 255, it's a global variable.
-            global @ 0x10...0xff => {
+            global @ 0x10..=0xff => {
                 let index = global - 0x10;
-                self.get_global_variables_view()
-                    .read_global(index as u16)
+                self.get_global_variables_view().read_global(index as u16)
             }
-            _ => unreachable!(),
         }
     }
 
+    // the machine always stores variables during or at the end of instruction calls,
+    // and accesses variables before processing the call;
+    pub fn store_variable(&mut self, address: u8, value: u16) {
+        // println!( "storing: {} at {}", value, address );
+
+        match address {
+            0 => self.call_stack.stack.push(value),
+            index @ 0x01..=0x0f => self.call_stack.store_local_variable(index, value),
+            global @ 0x10..=0xff => {
+                // offset by 16 to get the global "index"
+                let index = global - 0x10;
+                self.get_global_variables_view()
+                    .write_global(index as u16, value);
+            }
+        }
+    }
     // wait for input, and on input, hand it to whatever code/op was waiting
     // for it
-    pub fn wait_for_input<T: LineReader>(&mut self,
-                                         handler: &mut InputHandler<T>,
-                                         callback: Rc<Fn(String)>) {
-
-        let result = match handler.get_input() {
-            Some(x) => {
-                callback(x);
+    pub fn wait_for_input(&mut self, callback: Rc<dyn Fn(String)>) {
+        let mut buf = String::new();
+        let result = match self.zinterface.read_next_line(&mut buf) {
+            Some(_) => {
+                callback(buf.to_string());
                 true
             }
             _ => false,
@@ -789,7 +619,6 @@ impl<'a> ZMachine<'a> {
         if result {
             self.state = MachineState::Running;
         }
-
     }
 
     // this writes a variable in place - it really only specializes on the stack,
@@ -802,28 +631,5 @@ impl<'a> ZMachine<'a> {
             }
             _ => self.store_variable(address, value),
         }
-    }
-
-    // the machine always stores variables during or at the end of instruction calls,
-    // and accesses variables before processing the call;
-    pub fn store_variable(&mut self, address: u8, value: u16) {
-
-        // println!( "storing: {} at {}", value, address );
-
-        match address {
-            0 => self.call_stack.stack.push(value),
-            index @ 0x01...0x0f => {
-                self.call_stack
-                    .store_local_variable(index, value)
-            }
-            global @ 0x10...0xff => {
-                // offset by 16 to get the global "index"
-                let index = global - 0x10;
-                self.get_global_variables_view()
-                    .write_global(index as u16, value);
-            }
-            _ => unreachable!(),
-        }
-
     }
 }

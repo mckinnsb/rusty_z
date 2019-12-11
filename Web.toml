@@ -1,0 +1,9 @@
+default-target = "asmjs-unknown-emscripten" 
+
+# These will only take effect on *-emscripten targets.
+[target.emscripten]
+
+# This will enable Emscripten's SDL2 port. Consult Emscripten's documentation
+# for more details.
+
+# link-args = ["-s", "USE_SDL=2"]

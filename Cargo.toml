@@ -2,14 +2,20 @@
 name = "rusty_z"
 version = "0.0.1"
 authors = [ "Stew <mckinnsb@gmail.com>" ]
+edition = "2018"
 
 [dependencies]
 rand = "0.3.15"
-log = "0.3.6"
-log4rs = "0.5.2"
+serde = "1"
+serde_json = "1"
+serde_derive = "1"
+futures = "0.3.1"
 
-[dependencies.webplatform]
-git = "https://github.com/tcr/rust-webplatform"
+[target.'cfg(target_os="emscripten")'.dependencies.stdweb]
+version  = "0.4.20"
+features = ["experimental_features_which_may_break_on_minor_version_bumps"]
  
 [target.'cfg(not(target_os="emscripten"))'.dependencies]
 termion = "1.1.4"
+log = "0.3.6"
+log4rs = "0.5.2"

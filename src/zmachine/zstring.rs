@@ -1,5 +1,5 @@
-use std::fmt;
 use super::memory_view::*;
+use std::fmt;
 
 // ah, the ZString!
 //
@@ -13,7 +13,6 @@ use super::memory_view::*;
 // there are some special encoding rules too; zstrings can
 // encode abbreviations (for further compression), menu clicks,
 // single clicks and double clicks! ( i don't think this is used output wise, however )
-
 
 pub enum Alphabet {
     A0,
@@ -37,13 +36,15 @@ impl Alphabet {
 
 impl fmt::Display for Alphabet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "{}",
-               match self {
-                   &Alphabet::A0 => "A0",
-                   &Alphabet::A1 => "A1",
-                   &Alphabet::A2 => "A2",
-               })
+        write!(
+            f,
+            "{}",
+            match self {
+                &Alphabet::A0 => "A0",
+                &Alphabet::A1 => "A1",
+                &Alphabet::A2 => "A2",
+            }
+        )
     }
 }
 
@@ -66,6 +67,8 @@ pub enum ZWord {
     V4 { decoded: [u8; 9], encoded: [u8; 6] },
 }
 
+// this dead code we will silence the warnings for; this is used for debugging
+#[allow(dead_code)]
 impl ZWord {
     // this returns a copy, not the original
     pub fn decoded_as_vec(&self) -> Vec<u8> {
@@ -104,7 +107,6 @@ pub struct ZString {
 impl ZString {
     // create a zstring, located at offset from memory view's pointer
     pub fn create(offset: u32, view: &MemoryView, abbreviations_view: &MemoryView) -> ZString {
-
         // we legitimately don't know the length of this
         let mut bytes = Vec::new();
 
@@ -145,15 +147,15 @@ impl ZString {
         ZString::decode_into_string(&z_string.bytes, &mut z_string.string, abbreviations_view);
 
         z_string
-
     }
 
     // decodes the series of zhcars into destination;
     // modifies destination, doesn't return anything
-    pub fn decode_into_string(zchars: &Vec<u8>,
-                              destination: &mut String,
-                              abbreviations_view: &MemoryView) {
-
+    pub fn decode_into_string(
+        zchars: &Vec<u8>,
+        destination: &mut String,
+        abbreviations_view: &MemoryView,
+    ) {
         // we always start out with A0
         // this can shift for one character only, so we have to keep track of it
         let mut alphabet = Alphabet::A0;
@@ -163,7 +165,6 @@ impl ZString {
         let mut printing_abbreviation = Abbreviation::None;
 
         for ch in zchars.iter() {
-
             // println!( "{}", ch );
 
             // copy the byte, its fine. i don't care. ill probably end up doing it anyway.
@@ -172,7 +173,6 @@ impl ZString {
             // if-then madness in to more sensible cases that can persist state
             // over an iteration - perfect for decoding, as it turns out
             match (*ch, &alphabet, &printing_big_char, &printing_abbreviation) {
-
                 //if six and in alphabet A2, start a bigchar, but only if
                 //we are not starting an abbreviation
                 (6, &Alphabet::A2, &BigChar::None, &Abbreviation::None) => {
@@ -187,9 +187,8 @@ impl ZString {
                 //if partially building bigchar, this char is lower half of bigchar,
                 //and finish building the big char
                 (lower, _, &BigChar::Partial { upper }, _) => {
-
-                    let big_char = ((upper as u16) << 5 & 0b0000001111100000) |
-                                   ((lower as u16) & 0b0000000000011111);
+                    let big_char = ((upper as u16) << 5 & 0b0000001111100000)
+                        | ((lower as u16) & 0b0000000000011111);
 
                     match ZString::decode_zscii(big_char) {
                         Some(x) => destination.push(x),
@@ -203,15 +202,15 @@ impl ZString {
 
                 //if we have a character between 1 and 3, start building an abbreviation
                 //if we aren't already.
-                (z @ 1...3, _, _, &Abbreviation::None) => {
+                (z @ 1..=3, _, _, &Abbreviation::None) => {
                     printing_abbreviation = Abbreviation::Partial { z: z }
                 }
 
                 //if we are building an abbreviation, the next # is the index
                 //find the abbreviation and print
                 (i, _, _, &Abbreviation::Partial { z }) => {
-                    let string = format!("{}",
-                                         ZString::find_abbreviation(i, z, abbreviations_view));
+                    let string =
+                        format!("{}", ZString::find_abbreviation(i, z, abbreviations_view));
                     destination.push_str(&string);
                     printing_abbreviation = Abbreviation::None;
                     //im not sure if you are supposed to do anything w/alphabet here
@@ -220,7 +219,7 @@ impl ZString {
 
                 //if we have a character between 4 and 5, switch the alphabet
                 //(for the next char only) if we aren't building an abbreviation
-                (z @ 4...5, _, _, &Abbreviation::None) => alphabet = alphabet.next_alphabet(z),
+                (z @ 4..=5, _, _, &Abbreviation::None) => alphabet = alphabet.next_alphabet(z),
 
                 //the default case, actually print the string
                 (x, _, _, _) => {
@@ -228,9 +227,7 @@ impl ZString {
                     alphabet = Alphabet::A0;
                 }
             }
-
         }
-
     }
 
     // chars are runes in rust, sortof, kind of
@@ -323,17 +320,15 @@ impl ZString {
     }
 
     pub fn encode_word(word: &str, version: u8) -> ZWord {
-
         let len = match version {
-            1...3 => 6,
-            4...8 => 9,
+            1..=3 => 6,
+            4..=8 => 9,
             _ => panic!("version can only be 1-8!"),
         } as usize;
 
         let mut cache: Vec<u8> = Vec::with_capacity(len);
 
         for ch in word.chars() {
-
             if cache.len() == len {
                 break;
             }
@@ -342,8 +337,8 @@ impl ZString {
             // so we "jump" the exact equals
 
             // the problem is, we need the length to be exactly what the dictionary expects
-            // or else the lookup tables 
-            // 
+            // or else the lookup tables
+            //
             // instead of add that logic to each shift character, we just pop the last two
             // characters off in that case
 
@@ -353,17 +348,17 @@ impl ZString {
                 break;
             }
 
-            match ch { 
-                'a' => cache.push(0x6), 
-                'b' => cache.push(0x7), 
-                'c' => cache.push(0x8), 
-                'd' => cache.push(0x9), 
-                'e' => cache.push(0xA), 
-                'f' => cache.push(0xB), 
-                'g' => cache.push(0xC), 
-                'h' => cache.push(0xD), 
-                'i' => cache.push(0xE), 
-                'j' => cache.push(0xF), 
+            match ch {
+                'a' => cache.push(0x6),
+                'b' => cache.push(0x7),
+                'c' => cache.push(0x8),
+                'd' => cache.push(0x9),
+                'e' => cache.push(0xA),
+                'f' => cache.push(0xB),
+                'g' => cache.push(0xC),
+                'h' => cache.push(0xD),
+                'i' => cache.push(0xE),
+                'j' => cache.push(0xF),
                 'k' => cache.push(0x10),
                 'l' => cache.push(0x11),
                 'm' => cache.push(0x12),
@@ -383,43 +378,43 @@ impl ZString {
                 'A' => {
                     cache.push(0x4);
                     cache.push(0x6);
-                } 
+                }
                 'B' => {
                     cache.push(0x4);
                     cache.push(0x7);
-                } 
+                }
                 'C' => {
                     cache.push(0x4);
                     cache.push(0x8);
-                } 
+                }
                 'D' => {
                     cache.push(0x4);
                     cache.push(0x9);
-                } 
+                }
                 'E' => {
                     cache.push(0x4);
                     cache.push(0xA);
-                } 
+                }
                 'F' => {
                     cache.push(0x4);
                     cache.push(0xB);
-                } 
+                }
                 'G' => {
                     cache.push(0x4);
                     cache.push(0xC);
-                } 
+                }
                 'H' => {
                     cache.push(0x4);
                     cache.push(0xD);
-                } 
+                }
                 'I' => {
                     cache.push(0x4);
                     cache.push(0xE);
-                } 
+                }
                 'J' => {
                     cache.push(0x4);
                     cache.push(0xF);
-                } 
+                }
                 'K' => {
                     cache.push(0x4);
                     cache.push(0x10);
@@ -591,7 +586,6 @@ impl ZString {
                     println!("character not supported:{}", ch);
                 }
             }
-
         }
 
         // pad the remainder of the string out with the z-character 5 (shift)
@@ -605,12 +599,10 @@ impl ZString {
 
         let mut encoded: Vec<u8> = Vec::with_capacity(len / 3);
 
-        // split into chunks of three letters each, and shift them 
+        // split into chunks of three letters each, and shift them
         // such that they fit in a single word (16bytes/5 bytes each)
         for chunk in cache.chunks(3) {
-            let (a, b, c) = (chunk[0] as u16, 
-                             chunk[1] as u16, 
-                             chunk[2] as u16);
+            let (a, b, c) = (chunk[0] as u16, chunk[1] as u16, chunk[2] as u16);
 
             let encoded_word = (a << 10) | (b << 5) | (c);
 
@@ -633,23 +625,21 @@ impl ZString {
         encoded[index - 2] = encoded[index - 2] | 0x80;
 
         match version {
-            1...3 => {
-                ZWord::V3 {
-                    decoded: [cache[0], cache[1], cache[2], cache[3], cache[4], cache[5]],
-                    encoded: [encoded[0], encoded[1], encoded[2], encoded[3]],
-                }
-            }
-            4...8 => {
-                ZWord::V4 {
-                    decoded: [cache[0], cache[1], cache[2], cache[3], cache[4], cache[5],
-                              cache[6], cache[7], cache[8]],
-                    encoded: [encoded[0], encoded[1], encoded[2], encoded[3], encoded[4],
-                              encoded[5]],
-                }
-            }
+            1..=3 => ZWord::V3 {
+                decoded: [cache[0], cache[1], cache[2], cache[3], cache[4], cache[5]],
+                encoded: [encoded[0], encoded[1], encoded[2], encoded[3]],
+            },
+            4..=8 => ZWord::V4 {
+                decoded: [
+                    cache[0], cache[1], cache[2], cache[3], cache[4], cache[5], cache[6], cache[7],
+                    cache[8],
+                ],
+                encoded: [
+                    encoded[0], encoded[1], encoded[2], encoded[3], encoded[4], encoded[5],
+                ],
+            },
             _ => panic!("version only accepts 1-8!"),
         }
-
     }
 
     // these are all unicode characters...
@@ -672,7 +662,7 @@ impl ZString {
             9 => Some('\t'),
             11 => Some(' '),
             13 => Some('\n'),
-            c @ 32...126 => Some((c as u8) as char),
+            c @ 32..=126 => Some((c as u8) as char),
             155 => Some('ä'),
             156 => Some('ö'),
             157 => Some('ü'),
@@ -742,16 +732,14 @@ impl ZString {
             221 => Some('Œ'),
             222 => Some('¡'),
             223 => Some('¿'),
-            x @ _ => None,
+            _ => None,
         }
     }
 
     pub fn find_abbreviation(i: u8, z: u8, view: &MemoryView) -> ZString {
-
-
         let address_offset = (32 * (z - 1) + i) * 2;
         let packed_address = view.read_u16_at_head(address_offset as u32);
-        let address = (packed_address as u32 * 2);
+        let address = packed_address as u32 * 2;
 
         let mut new_view = view.clone();
         new_view.pointer = address;
@@ -762,7 +750,6 @@ impl ZString {
         // and can't see any reason why it would fail )
 
         ZString::create(0, &new_view, view)
-
     }
 }
 
