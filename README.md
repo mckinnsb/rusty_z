@@ -17,6 +17,7 @@ Other known issues/planned work:
 * Quit prompts and confirm prompts for non-`asmjs` move the cursor to the wrong location, causing the confirm/dialog to be cut off (classic terminal issue).
 * Restart doesn't do anything (halts the system) on `asmjs-unknown-emscripten`. 
 * You can't pick the story file at this point in time; it's hard coded into the binary. This was done for expedience; there's no requirement that the story file be a static `Vec` or anything. This is one part of the CLI/web interface that's going to be pretty tricky to sort out, particularly for the `asmjs` target.
+* There's technically a maximum number of commands you can enter at this point in time; this is the maximum size of the stream/stack, which is actually not truncated at runtime (yet). There are a few ways to do this, I'm currently thinking about a good solution.
 
 The target is currently `asmjs-unknown-emscripten`, but I'd like to bring it to WASM someday.
 
