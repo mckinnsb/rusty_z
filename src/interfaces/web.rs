@@ -3,10 +3,7 @@ extern crate serde_derive;
 
 use std::{cell::*, pin::Pin, rc::*};
 
-use stdweb::{
-    *,
-    unstable::TryInto
-};
+use stdweb::{unstable::TryInto, *};
 
 use self::{
     futures::task::*,
@@ -18,7 +15,7 @@ use super::zinterface::*;
 
 pub struct WebInputIndicator {
     pub input_sent: bool,
-    pub input: String
+    pub input: String,
 }
 
 // We are using Rc<RefCell> for the publisher as well as the indicator
@@ -39,7 +36,7 @@ pub struct WebPublisher {
 
 pub struct WebStream {
     terminated: bool,
-    index: u8,
+    index: usize,
     stream: Weak<RefCell<WebPublisher>>,
 }
 
@@ -52,9 +49,9 @@ pub struct WebUpdate {
 impl WebInterface {
     pub fn new() -> WebInterface {
         let interface = WebInterface {
-            indicator: Rc::new(RefCell::new(WebInputIndicator { 
+            indicator: Rc::new(RefCell::new(WebInputIndicator {
                 input_sent: false,
-                input: "".to_string()
+                input: "".to_string(),
             })),
             publisher: Rc::new(RefCell::new(WebPublisher::new())),
         };
@@ -76,7 +73,7 @@ impl WebInterface {
 }
 
 impl Drop for WebInterface {
-    fn drop (&mut self) {
+    fn drop(&mut self) {
         js! {
             window.RustyZ.update.drop();
             window.RustyZ.loopCallback.drop();
@@ -84,7 +81,6 @@ impl Drop for WebInterface {
         }
     }
 }
-
 
 impl ZInterface for WebInterface {
     fn clear(&self) {}
@@ -109,6 +105,11 @@ impl ZInterface for WebInterface {
     }
 
     fn read_next_line(&self, buf: &mut String) -> Option<usize> {
+        self.publisher.borrow_mut().send(WebUpdate {
+            source: "input".to_string(),
+            content: "".to_string()
+        });
+
         let input_sent = self.indicator.borrow().input_sent;
 
         if input_sent == false {
@@ -171,8 +172,9 @@ impl WebPublisher {
     }
 
     pub async fn subscribe(stream: &mut WebStream) {
-        stream.by_ref()
-              .for_each(|x| {
+        stream
+            .by_ref()
+            .for_each(|x| {
                 js! { @(no_return)
                     window.RustyZ.callbackFn(@{&x});
                 };
@@ -228,7 +230,6 @@ impl WebStream {
             });
         }
     }
-
 }
 
 impl Stream for WebStream {
@@ -261,7 +262,8 @@ impl Stream for WebStream {
             let result = match stream.borrow().updates.get(self.index as usize) {
                 None => None,
                 Some(x) => {
-                    self.get_mut().index += 1;
+                    let index = self.index;
+                    self.get_mut().index = index + 1;
                     Some(x.clone())
                 }
             };
@@ -277,5 +279,4 @@ impl Stream for WebStream {
             Some(x) => Poll::Ready(Some(x)),
         }
     }
-
 }
