@@ -9,7 +9,7 @@ The machine will compile for most regular targets that have a CLI (using `termio
 This is still a work in progress, but it should implement all of the Version 3 opcodes except save and restore. This means it should be able to play most Version 3 games that used Inform compilers that used opcodes in a "standard" manner. For instance, I know you can finish Zork I, and I'm fairly certain you can finish II and III as well. However, some games used their own tweaked interpeters to handle behavior that would normally be undefined.
 
 Games known to not work:
-* Hitchhiker's Guide To The Galaxy (this game tests attribute 0 of object 0, which always resolved to false in some interpreters, but there is no object 0, and thus panics on ours)
+* Hitchhiker's Guide To The Galaxy (this game tests attribute 0 of object 0, which returned false in patched interpreters, but there is no object 0 as object indexes start at 1, and thus panics on a standard interpreter)
 
 Other known issues/planned work:
 
