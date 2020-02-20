@@ -437,7 +437,7 @@ impl<T: ZInterface> OpCode<T> {
     }
 
     //placeholder, does nothing
-    pub fn null_instruction(code: &mut OpCode<T>, machine: &mut ZMachine<T>) {}
+    pub fn null_instruction(_: &mut OpCode<T>, _: &mut ZMachine<T>) {}
 
     // there are cases where we need to "return true" or "return false" after
     // branch operations - basically, we need to run two opcodes at a time

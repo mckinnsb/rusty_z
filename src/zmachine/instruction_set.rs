@@ -1228,7 +1228,7 @@ fn sread_find_word_in_dictionary(string: &ZWord, dictionary: &MemoryView) -> Opt
         // in a 64 bit number since modern cpus woo! )
 
         let encode_map = [encoded_string, dictionary_entry]
-            .into_iter()
+            .iter()
             .map(|container| {
                 let mut total: u64 = 0;
 

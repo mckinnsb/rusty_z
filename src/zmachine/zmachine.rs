@@ -369,6 +369,7 @@ impl<T: ZInterface> ZMachine<T> {
             pointer: 0,
         }
     }
+
     // object id is a u16 because in future versions, there can be up
     // to 65k objects. id rather standardize that ahead of time because
     // it will be all over the instruction set
@@ -376,14 +377,12 @@ impl<T: ZInterface> ZMachine<T> {
         // we will have to change the values for this in the future when we support
         // newer versions of the ZMachine ( particularly version 4 )
 
-        // we should really be getting this from the header - ill save it for a future
-        // refactor, minor issue right now
+        // we should really be getting this from the header - ill save it 
+        // for when we move to version 4+ (that's when this changes)
         let object_length = 9;
         let property_defaults_length = 62;
 
         // calculate offset and object location
-        // println!( "object id: {}", object_id );
-
         let offset = (object_id as u32 - 1) * object_length;
 
         let object_location =

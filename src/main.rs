@@ -5,7 +5,7 @@ extern crate rand;
 #[cfg(target_os = "emscripten")]
 extern crate stdweb;
 
-use std::{cell::*, rc::*};
+use std::rc::*;
 
 use interfaces::zinterface::*;
 use zmachine::zmachine::*;
@@ -28,7 +28,7 @@ fn main() {
     // state of the machine. which makes complete sense
     let data = get_program();
 
-    let mut interface = get_interface();
+    let interface = get_interface();
     interface.clear();
 
     let mut machine = ZMachine::new(data, interface);

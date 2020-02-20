@@ -9,7 +9,6 @@ use self::log4rs::append::file::*;
 use self::log4rs::config::{Appender, Config, Logger, Root};
 use self::termion::{clear, color, cursor, style};
 
-use super::super::zmachine::zmachine::*;
 use super::zinterface::*;
 
 pub struct CliInterface {}
